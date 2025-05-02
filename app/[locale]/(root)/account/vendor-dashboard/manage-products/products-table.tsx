@@ -28,7 +28,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { MoreHorizontal, Pencil, Trash2, Eye } from 'lucide-react'
+import { MoreHorizontal, Pencil, Trash2, Eye, Search, X } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Badge } from '@/components/ui/badge'
@@ -36,12 +36,15 @@ import { formatPrice } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { toast } from '@/hooks/use-toast'
 import { getVendorProducts, deleteProduct } from '@/lib/actions/product.server'
+import { Input } from '@/components/ui/input'
 
 export default function ProductsTable({ vendorId }: { vendorId: string }) {
   const router = useRouter()
   const [products, setProducts] = useState<any[]>([])
+  const [filteredProducts, setFilteredProducts] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [productToDelete, setProductToDelete] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   
   // Fetch products on component mount
   useEffect(() => {
@@ -50,6 +53,7 @@ export default function ProductsTable({ vendorId }: { vendorId: string }) {
         const response = await getVendorProducts(vendorId)
         if (response.success) {
           setProducts(response.data || [])
+          setFilteredProducts(response.data || [])
         } else {
           toast({
             variant: 'destructive',
@@ -69,6 +73,24 @@ export default function ProductsTable({ vendorId }: { vendorId: string }) {
 
     fetchProducts()
   }, [vendorId])
+  
+  // Filter products when search query changes
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredProducts(products)
+      return
+    }
+    
+    const lowercaseQuery = searchQuery.toLowerCase()
+    const filtered = products.filter(product => 
+      product.name.toLowerCase().includes(lowercaseQuery) ||
+      product.description?.toLowerCase().includes(lowercaseQuery) ||
+      product.category?.toLowerCase().includes(lowercaseQuery) ||
+      product.brand?.toLowerCase().includes(lowercaseQuery)
+    )
+    
+    setFilteredProducts(filtered)
+  }, [searchQuery, products])
 
   const handleDeleteProduct = async () => {
     if (!productToDelete) return
@@ -76,7 +98,9 @@ export default function ProductsTable({ vendorId }: { vendorId: string }) {
     try {
       const response = await deleteProduct(productToDelete)
       if (response.success) {
-        setProducts(products.filter(product => product._id !== productToDelete))
+        const updatedProducts = products.filter(product => product._id !== productToDelete)
+        setProducts(updatedProducts)
+        setFilteredProducts(updatedProducts)
         toast({
           description: 'Product deleted successfully',
         })
@@ -92,18 +116,55 @@ export default function ProductsTable({ vendorId }: { vendorId: string }) {
       setProductToDelete(null)
     }
   }
+  
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value)
+  }
+  
+  const clearSearch = () => {
+    setSearchQuery('')
+  }
 
   if (isLoading) {
     return <div className="flex justify-center py-10">Loading products...</div>
   }
-
+  
   return (
     <>
+      <div className="mb-6">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Search products by name, description, category, or brand..."
+            className="pl-10 pr-10"
+            value={searchQuery}
+            onChange={handleSearchChange}
+          />
+          {searchQuery && (
+            <button 
+              onClick={clearSearch}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+              <span className="sr-only">Clear search</span>
+            </button>
+          )}
+        </div>
+        {filteredProducts.length === 0 && searchQuery && (
+          <p className="text-sm text-muted-foreground mt-2">
+            No products found matching "{searchQuery}". Try a different search term.
+          </p>
+        )}
+      </div>
+
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Product</TableHead>
+              <TableHead>Brand</TableHead>
+              <TableHead>Category</TableHead>
               <TableHead>Price</TableHead>
               <TableHead>Stock</TableHead>
               <TableHead>Status</TableHead>
@@ -111,8 +172,8 @@ export default function ProductsTable({ vendorId }: { vendorId: string }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {products.length > 0 ? (
-              products.map((product) => (
+            {filteredProducts.length > 0 ? (
+              filteredProducts.map((product) => (
                 <TableRow key={product._id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -132,11 +193,32 @@ export default function ProductsTable({ vendorId }: { vendorId: string }) {
                           </div>
                         )}
                       </div>
-                      <span className="font-medium">{product.name}</span>
+                      <div>
+                        <span className="font-medium truncate block max-w-[200px]" title={product.name}>
+                          {product.name}
+                        </span>
+                        <span className="text-xs text-muted-foreground">{product.slug}</span>
+                      </div>
                     </div>
                   </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="font-normal">
+                      {product.brand || '-'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className="font-normal">
+                      {product.category || '-'}
+                    </Badge>
+                  </TableCell>
                   <TableCell>{formatPrice(product.price)}</TableCell>
-                  <TableCell>{product.countInStock}</TableCell>
+                  <TableCell>
+                    <span className={product.stock <= 5 ? "text-red-500 font-medium" : ""}>
+                      {product.stock || 0}
+                      {product.stock <= 5 && product.stock > 0 && " (Low)"}
+                      {product.stock === 0 && " (Out of stock)"}
+                    </span>
+                  </TableCell>
                   <TableCell>
                     <Badge 
                       variant={
@@ -160,7 +242,7 @@ export default function ProductsTable({ vendorId }: { vendorId: string }) {
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem asChild>
-                          <Link href={`/products/${product.slug}`}>
+                          <Link href={`/product/${product.slug}`}>
                             <Eye className="mr-2 h-4 w-4" />
                             View
                           </Link>
@@ -185,8 +267,8 @@ export default function ProductsTable({ vendorId }: { vendorId: string }) {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center">
-                  No products found. Create your first product!
+                <TableCell colSpan={7} className="h-24 text-center">
+                  {searchQuery ? 'No products found matching your search.' : 'No products found. Create your first product!'}
                 </TableCell>
               </TableRow>
             )}

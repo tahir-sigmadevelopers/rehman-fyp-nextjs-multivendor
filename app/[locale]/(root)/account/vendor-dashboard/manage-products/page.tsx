@@ -2,11 +2,10 @@ import { Metadata } from 'next'
 import { auth } from '@/auth'
 import { getVendorByUserId } from '@/lib/actions/vendor.server'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { InfoIcon, Plus, Search } from 'lucide-react'
+import { InfoIcon, Plus } from 'lucide-react'
 import Link from 'next/link'
 import ProductsTable from './products-table'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 
 const PAGE_TITLE = 'Manage Products'
 export const metadata: Metadata = {
@@ -82,17 +81,7 @@ export default async function ManageProductsPage() {
           </Link>
           <h1 className="h1-bold mt-2">{PAGE_TITLE}</h1>
         </div>
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-3 justify-between items-center">
-        <div className="relative w-full max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search products..."
-            className="pl-8"
-          />
-        </div>
+        
         <Link href="/account/vendor-dashboard/new-product">
           <Button>
             <Plus className="mr-2 h-4 w-4" />

@@ -4,6 +4,56 @@ import { connectToDatabase } from '@/lib/db'
 import User from '@/lib/db/models/user.model'
 import { revalidatePath } from 'next/cache'
 
+// Helper function to serialize MongoDB documents to plain objects
+function serializeDocument(doc: any) {
+  if (!doc) return null;
+  
+  // Handle MongoDB documents or simple objects
+  const obj = doc.toJSON ? doc.toJSON() : { ...doc };
+  
+  // Convert all potential ObjectIds to strings
+  for (const key in obj) {
+    // Convert ObjectIds (they usually have a toString method and might have a buffer property)
+    if (obj[key] && typeof obj[key] === 'object') {
+      // If field is an ObjectId or has a buffer property
+      if (obj[key].toString && (obj[key]._bsontype === 'ObjectID' || obj[key].buffer)) {
+        obj[key] = obj[key].toString();
+      } 
+      // Recursively serialize nested objects
+      else if (!Array.isArray(obj[key]) && obj[key] !== null) {
+        obj[key] = serializeDocument(obj[key]);
+      }
+    }
+  }
+  
+  // Convert _id to string if it exists
+  if (obj._id) {
+    obj._id = typeof obj._id === 'object' ? obj._id.toString() : obj._id;
+  }
+  
+  // Handle dates
+  if (obj.createdAt) {
+    obj.createdAt = obj.createdAt instanceof Date ? obj.createdAt.toISOString() : obj.createdAt.toString();
+  }
+  if (obj.updatedAt) {
+    obj.updatedAt = obj.updatedAt instanceof Date ? obj.updatedAt.toISOString() : obj.updatedAt.toString();
+  }
+  
+  // Handle any other arrays in the object
+  for (const key in obj) {
+    if (Array.isArray(obj[key])) {
+      obj[key] = obj[key].map((item: any) => {
+        if (item && typeof item === 'object') {
+          return serializeDocument(item);
+        }
+        return item;
+      });
+    }
+  }
+  
+  return obj;
+}
+
 export async function createVendor(data: {
   userId: string
   brandName: string
@@ -34,10 +84,10 @@ export async function createVendor(data: {
     }
 
     // Convert Mongoose document to plain object
-    const userObject = user.toObject()
+    const serializedUser = serializeDocument(user);
 
     revalidatePath('/account/become-seller')
-    return { success: true, data: userObject }
+    return { success: true, data: serializedUser }
   } catch (error) {
     console.error('Error creating vendor:', error)
     return { success: false, message: error instanceof Error ? error.message : 'Failed to create vendor' }
@@ -53,10 +103,10 @@ export async function getVendorByUserId(userId: string) {
       return { success: false, message: 'Vendor not found' }
     }
 
-    // Convert Mongoose document to plain object
-    const userObject = user.toObject()
+    // Convert Mongoose document to plain object using our serializer
+    const serializedUser = serializeDocument(user);
 
-    return { success: true, data: userObject }
+    return { success: true, data: serializedUser }
   } catch (error) {
     console.error('Error getting vendor:', error)
     return { success: false, message: error instanceof Error ? error.message : 'Failed to get vendor' }
@@ -81,10 +131,10 @@ export async function updateVendorStatus(userId: string, status: 'approved' | 'r
     }
 
     // Convert Mongoose document to plain object
-    const userObject = user.toObject()
+    const serializedUser = serializeDocument(user);
 
     revalidatePath('/account/become-seller')
-    return { success: true, data: userObject }
+    return { success: true, data: serializedUser }
   } catch (error) {
     console.error('Error updating vendor status:', error)
     return { success: false, message: error instanceof Error ? error.message : 'Failed to update vendor status' }
@@ -98,9 +148,11 @@ export async function getAllVendors() {
     const vendors = await User.find({ isVendor: true })
       .select('name email vendorDetails')
       .sort({ 'vendorDetails.status': 1, createdAt: -1 })
-      .lean() // Use lean() to get plain objects directly
+    
+    // Serialize each vendor document
+    const serializedVendors = vendors.map(vendor => serializeDocument(vendor));
 
-    return { success: true, data: vendors }
+    return { success: true, data: serializedVendors }
   } catch (error) {
     console.error('Error getting all vendors:', error)
     return { success: false, message: error instanceof Error ? error.message : 'Failed to get vendors' }
@@ -111,12 +163,13 @@ export async function getVendorStatus(userId: string) {
   try {
     await connectToDatabase()
 
-    const user = await User.findById(userId).select('isVendor vendorDetails').lean()
+    const user = await User.findById(userId).select('isVendor vendorDetails')
     
     if (!user) {
       return { success: false, message: 'User not found' }
     }
 
+    // For this function we're already returning a custom object so we don't need serialization
     return { 
       success: true, 
       data: {
@@ -167,10 +220,10 @@ export async function updateVendorInformation(data: {
     }
 
     // Convert Mongoose document to plain object
-    const userObject = user.toObject()
+    const serializedUser = serializeDocument(user);
 
     revalidatePath('/account/vendor-dashboard')
-    return { success: true, data: userObject }
+    return { success: true, data: serializedUser }
   } catch (error) {
     console.error('Error updating vendor information:', error)
     return { success: false, message: error instanceof Error ? error.message : 'Failed to update vendor information' }
