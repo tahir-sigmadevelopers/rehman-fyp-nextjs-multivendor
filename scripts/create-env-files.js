@@ -27,6 +27,7 @@ PAYPAL_ENVIRONMENT=production
 `;
 
 const scriptDir = path.dirname(__filename);
+
 const rootDir = path.join(scriptDir, '..');
 const prodEnvPath = path.join(rootDir, '.env.production.example');
 
