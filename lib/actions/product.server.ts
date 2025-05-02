@@ -79,7 +79,7 @@ export async function createProduct(data: {
   listPrice: number
   images: string[]
   category: string
-  countInStock: number
+  stock: number
   vendorId: string
   slug: string
   brand: string
@@ -104,7 +104,7 @@ export async function createProduct(data: {
       listPrice: data.listPrice,
       images: data.images || [],
       category: data.category,
-      countInStock: data.countInStock,
+      stock: data.stock,
       vendorId: data.vendorId,
       slug: data.slug,
       brand: data.brand,
@@ -157,7 +157,7 @@ export async function updateProduct(productId: string, data: {
   listPrice?: number
   images?: string[]
   category?: string
-  countInStock?: number
+  stock?: number
   brand?: string
   slug?: string
   tags?: string[]

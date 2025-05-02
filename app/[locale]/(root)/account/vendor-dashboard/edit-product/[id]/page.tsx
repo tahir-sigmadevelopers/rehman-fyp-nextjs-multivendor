@@ -2,7 +2,7 @@ import { Metadata } from 'next'
 import { auth } from '@/auth'
 import { getVendorByUserId } from '@/lib/actions/vendor.server'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { InfoIcon, ArrowLeft } from 'lucide-react'
+import { InfoIcon } from 'lucide-react'
 import Link from 'next/link'
 import ProductEditForm from './product-edit-form'
 import { getProductById } from '@/lib/actions/product.server'
@@ -83,22 +83,5 @@ export default async function EditProductPage({
     return notFound()
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <Link 
-            href="/account/vendor-dashboard/manage-products" 
-            className="text-sm text-muted-foreground hover:text-primary inline-flex items-center"
-          >
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            Back to Products
-          </Link>
-          <h1 className="h1-bold mt-2">{PAGE_TITLE}</h1>
-        </div>
-      </div>
-      
-      <ProductEditForm product={product} vendorId={session.user.id} />
-    </div>
-  )
+  return <ProductEditForm product={product} vendorId={session.user.id} />
 } 
