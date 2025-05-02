@@ -7,7 +7,7 @@
     "seed": "npx tsx ./lib/db/seed.ts",
     "dev": "next dev --turbopack",
     "build": "next build",
-    "start": "NODE_ENV=production node server.js",
+    "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {

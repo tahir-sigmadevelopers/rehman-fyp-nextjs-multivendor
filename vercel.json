@@ -1,9 +1,12 @@
 {
   "version": 2,
-  "name": "ECOMMERCE-MERN",
-  "builds": [{ "src": "server.js", "use": "@vercel/node" }],
-  "routes": [{ "src": "/(.*)", "dest": "/server.js" }],
+  "buildCommand": "npm run build",
   "installCommand": "npm install --legacy-peer-deps",
+  "outputDirectory": ".next",
+  "github": {
+    "enabled": true,
+    "silent": true
+  },
   "headers": [
     {
       "source": "/api/(.*)",
