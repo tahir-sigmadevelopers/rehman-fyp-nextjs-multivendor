@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { Metadata } from 'next'
 import { auth } from '@/auth'
 import { getVendorByUserId } from '@/lib/actions/vendor.server'
-import { getVendorOrders } from '@/lib/actions/order.actions'
+import { getVendorOrders, getVendorSalesAnalytics } from '@/lib/actions/order.actions'
 import { getVendorProducts } from '@/lib/actions/product.server'
 import { 
   InfoIcon, 
@@ -21,6 +21,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { cn, formatDateTime, formatPrice } from '@/lib/utils'
+import SalesChart from './sales-chart'
 
 const PAGE_TITLE = 'Vendor Dashboard'
 export const metadata: Metadata = {
@@ -53,23 +54,56 @@ export default async function VendorDashboardPage() {
   let totalRevenue = 0
   let totalProducts = 0
   let activeProducts = 0
+  let salesAnalytics: { month: string; amount: number }[] = []
   
   if (vendor && vendor.isVendor && vendor.vendorDetails?.status === 'approved') {
     // Get vendor products
     const productsResponse = await getVendorProducts(session.user.id)
-    if (productsResponse.success) {
+    if (productsResponse.success && productsResponse.data) {
       totalProducts = productsResponse.data.length
       activeProducts = productsResponse.data.filter(product => product.isPublished).length
     }
     
-    // Get all vendor orders for revenue calculation
-    const allOrdersResponse = await getVendorOrders({
-      vendorId: session.user.id,
-      page: 1,
-      limit: 1000 // Get a large number to calculate total revenue
-    })
+    // Get vendor sales analytics
+    const analyticsResponse = await getVendorSalesAnalytics(session.user.id)
+    if (analyticsResponse.success && analyticsResponse.data) {
+      // Add validation to ensure proper format
+      const monthlySales = analyticsResponse.data.monthlySales || [];
+      salesAnalytics = monthlySales.map(item => ({
+        month: typeof item.month === 'string' && item.month.includes('-') 
+          ? item.month 
+          : `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`, // Default to current month if invalid
+        amount: typeof item.amount === 'number' ? item.amount : 0 // Default to 0 if amount is invalid
+      }));
+      
+      // If we already have total revenue from analytics, use it instead of recalculating
+      if (analyticsResponse.data.totalRevenue) {
+        totalRevenue = analyticsResponse.data.totalRevenue
+      }
+      if (analyticsResponse.data.totalOrders) {
+        totalOrders = analyticsResponse.data.totalOrders
+      }
+    } else {
+      // Fallback to getting all orders for revenue calculation
+      const allOrdersResponse = await getVendorOrders({
+        vendorId: session.user.id,
+        page: 1,
+        limit: 1000 // Get a large number to calculate total revenue
+      })
+      
+      if (allOrdersResponse.success) {
+        totalOrders = allOrdersResponse.totalOrders || 0
+        
+        // Calculate total revenue from all vendor orders
+        if (allOrdersResponse.data && allOrdersResponse.data.length > 0) {
+          totalRevenue = allOrdersResponse.data.reduce((sum: number, order: any) => 
+            sum + (order.vendorItemsPrice || order.itemsPrice || 0), 0
+          )
+        }
+      }
+    }
     
-    // Get recent orders for display
+    // Always get recent orders for display, regardless of analytics success
     const recentOrdersResponse = await getVendorOrders({
       vendorId: session.user.id,
       page: 1,
@@ -77,18 +111,8 @@ export default async function VendorDashboardPage() {
     })
     
     if (recentOrdersResponse.success) {
-      recentOrders = recentOrdersResponse.data
-    }
-    
-    if (allOrdersResponse.success) {
-      totalOrders = allOrdersResponse.totalOrders || 0
-      
-      // Calculate total revenue from all vendor orders
-      if (allOrdersResponse.data && allOrdersResponse.data.length > 0) {
-        totalRevenue = allOrdersResponse.data.reduce((sum, order) => 
-          sum + (order.vendorItemsPrice || order.itemsPrice || 0), 0
-        )
-      }
+      recentOrders = recentOrdersResponse.data || []
+      console.log('Recent orders:', recentOrders.length)
     }
   }
   
@@ -403,13 +427,13 @@ export default async function VendorDashboardPage() {
                         recentOrders.map((order: any, i: number) => (
                           <tr key={order._id} className={cn("border-b", i === recentOrders.length - 1 && "border-b-0")}>
                             <td className="py-3 px-6 font-medium">
-                              <span className="font-mono text-xs">{order._id.substring(0, 10)}...</span>
+                              <span className="font-mono text-xs">{order._id?.substring(0, 10) || 'N/A'}...</span>
                             </td>
                             <td className="py-3 px-6 text-muted-foreground">
-                              {formatDateTime(new Date(order.createdAt)).dateOnly}
+                              {order.createdAt ? formatDateTime(new Date(order.createdAt)).dateOnly : 'N/A'}
                             </td>
                             <td className="py-3 px-6">
-                              {formatPrice(order.vendorItemsPrice || order.itemsPrice)}
+                              {formatPrice(order.vendorItemsPrice || order.itemsPrice || 0)}
                             </td>
                             <td className="py-3 px-6">
                               <Badge variant={!order.isPaid ? 'outline' : order.isDelivered ? 'default' : 'secondary'}>
@@ -472,29 +496,8 @@ export default async function VendorDashboardPage() {
             
             {/* Sales Analytics */}
             <Card className="md:col-span-2">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Sales Analytics</CardTitle>
-                    <CardDescription>Your store performance over time</CardDescription>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm">Weekly</Button>
-                    <Button variant="outline" size="sm">Monthly</Button>
-                    <Button size="sm">Yearly</Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-3">
-                <div className="h-[300px] w-full flex items-center justify-center border rounded-md bg-muted/40">
-                  <div className="flex flex-col items-center gap-2 text-center">
-                    <BarChart3 className="h-10 w-10 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground max-w-[250px]">
-                      Sales analytics will be available once you have completed sales
-                    </p>
-                    <Button variant="outline" size="sm" className="mt-2">View Reports</Button>
-                  </div>
-                </div>
+              <CardContent>
+                <SalesChart data={salesAnalytics} />
               </CardContent>
             </Card>
             

@@ -79,7 +79,7 @@ export async function createProduct(data: {
 }) {
   try {
     await connectToDatabase()
-    
+
     // Clean up and validate the data
     const productData = {
       name: data.name,
@@ -127,7 +127,7 @@ export async function getVendorProducts(vendorId: string) {
     await connectToDatabase()
 
     const products = await Product.find({ vendorId }).sort({ createdAt: -1 })
-    
+
     // Serialize the MongoDB documents to plain objects
     const serializedProducts = products.map(product => serializeDocument(product));
 

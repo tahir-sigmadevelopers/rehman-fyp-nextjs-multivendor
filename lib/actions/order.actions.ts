@@ -625,3 +625,115 @@ export async function getVendorOrders({
     };
   }
 }
+
+// GET VENDOR SALES ANALYTICS
+export async function getVendorSalesAnalytics(vendorId: string) {
+  try {
+    await connectToDatabase()
+    
+    // Get all products for this vendor
+    const vendorProducts = await Product.find({ vendorId }).select('_id')
+    const vendorProductIds = vendorProducts.map(product => product._id.toString())
+    
+    if (vendorProductIds.length === 0) {
+      return {
+        success: true,
+        data: {
+          monthlySales: [],
+          totalRevenue: 0,
+          totalOrders: 0
+        }
+      }
+    }
+    
+    // Get the date 6 months ago from now
+    const today = new Date()
+    const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 5, 1)
+    
+    // Aggregate monthly sales data for the last 6 months
+    const monthlySales = await Order.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: sixMonthsAgo },
+          "items.product": { $in: vendorProductIds.map(id => new mongoose.Types.ObjectId(id)) }
+        }
+      },
+      // Unwind items array so we can filter by product
+      { $unwind: "$items" },
+      // Match only items that belong to this vendor
+      {
+        $match: {
+          "items.product": { $in: vendorProductIds.map(id => new mongoose.Types.ObjectId(id)) }
+        }
+      },
+      // Calculate sales amount per order item
+      {
+        $project: {
+          month: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+          amount: { $multiply: ["$items.price", "$items.quantity"] }
+        }
+      },
+      // Group by month
+      {
+        $group: {
+          _id: "$month",
+          sales: { $sum: "$amount" }
+        }
+      },
+      // Format the output
+      {
+        $project: {
+          _id: 0,
+          month: "$_id",
+          amount: "$sales"
+        }
+      },
+      // Sort by month
+      { $sort: { month: 1 } }
+    ])
+    
+    // Count total orders for this vendor
+    const totalOrders = await Order.countDocuments({
+      "items.product": { $in: vendorProductIds.map(id => new mongoose.Types.ObjectId(id)) }
+    })
+    
+    // Calculate total revenue
+    const totalRevenue = monthlySales.reduce((sum, item) => sum + item.amount, 0)
+    
+    // Generate complete month series for the last 6 months (filling in any gaps)
+    const monthLabels = []
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1)
+      const monthString = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      monthLabels.unshift(monthString)
+    }
+    
+    // Create final dataset with all months (including zeros for months with no sales)
+    const completeMonthlyData = monthLabels.map(month => {
+      const existingData = monthlySales.find(item => item.month === month)
+      return {
+        month,
+        amount: existingData ? existingData.amount : 0
+      }
+    })
+    
+    // Log the generated data to help with debugging
+    console.log('Generated monthly sales data:', completeMonthlyData)
+    
+    return {
+      success: true,
+      data: {
+        monthlySales: completeMonthlyData,
+        totalRevenue,
+        totalOrders
+      }
+    }
+    
+  } catch (error) {
+    console.error('Error getting vendor sales analytics:', error)
+    return { 
+      success: false, 
+      message: error instanceof Error ? error.message : 'Failed to get sales analytics' 
+    }
+  }
+}
