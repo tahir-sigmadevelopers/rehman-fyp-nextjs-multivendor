@@ -83,5 +83,8 @@ export default async function EditProductPage({
     return notFound()
   }
 
-  return <ProductEditForm product={product} vendorId={session.user.id} />
+  // Ensure product data is fully serialized to avoid any non-serializable properties
+  const serializedProduct = JSON.parse(JSON.stringify(product))
+
+  return <ProductEditForm product={serializedProduct} vendorId={session.user.id} />
 } 

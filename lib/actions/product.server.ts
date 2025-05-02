@@ -7,69 +7,53 @@ import { revalidatePath } from 'next/cache'
 function serializeDocument(doc: any) {
   if (!doc) return null;
   
-  // Handle MongoDB documents or simple objects
-  const obj = doc.toJSON ? doc.toJSON() : { ...doc };
-  
-  // Convert all potential ObjectIds to strings
-  for (const key in obj) {
-    // Convert ObjectIds (they usually have a toString method and might have a buffer property)
-    if (obj[key] && typeof obj[key] === 'object') {
-      // If field is an ObjectId or has a buffer property
-      if (obj[key].toString && (obj[key]._bsontype === 'ObjectID' || obj[key].buffer)) {
-        obj[key] = obj[key].toString();
-      } 
-      // Recursively serialize nested objects
-      else if (!Array.isArray(obj[key]) && obj[key] !== null) {
+  // To ensure full serialization, convert to JSON and back
+  try {
+    // First convert mongoose document to plain object if needed
+    const plainObject = doc.toJSON ? doc.toJSON() : { ...doc };
+    
+    // Then do a full serialization through JSON.stringify/parse to remove any non-serializable properties
+    return JSON.parse(JSON.stringify(plainObject));
+  } catch (error) {
+    console.error('Error serializing document:', error);
+    
+    // Fallback to manual serialization if JSON approach fails
+    const obj = doc.toJSON ? doc.toJSON() : { ...doc };
+    
+    // Convert _id to string if it exists
+    if (obj._id) {
+      obj._id = typeof obj._id === 'object' ? obj._id.toString() : obj._id;
+    }
+    
+    // Convert vendorId to string if it exists
+    if (obj.vendorId && typeof obj.vendorId === 'object') {
+      obj.vendorId = obj.vendorId.toString();
+    }
+    
+    // Handle dates
+    if (obj.createdAt) {
+      obj.createdAt = obj.createdAt instanceof Date ? obj.createdAt.toISOString() : obj.createdAt.toString();
+    }
+    if (obj.updatedAt) {
+      obj.updatedAt = obj.updatedAt instanceof Date ? obj.updatedAt.toISOString() : obj.updatedAt.toString();
+    }
+    
+    // Handle arrays
+    Object.keys(obj).forEach(key => {
+      if (Array.isArray(obj[key])) {
+        obj[key] = obj[key].map((item: any) => {
+          if (item && typeof item === 'object') {
+            return serializeDocument(item);
+          }
+          return item;
+        });
+      } else if (obj[key] && typeof obj[key] === 'object') {
         obj[key] = serializeDocument(obj[key]);
       }
-    }
-  }
-  
-  // Convert _id to string if it exists
-  if (obj._id) {
-    obj._id = typeof obj._id === 'object' ? obj._id.toString() : obj._id;
-  }
-  
-  // Handle dates
-  if (obj.createdAt) {
-    obj.createdAt = obj.createdAt instanceof Date ? obj.createdAt.toISOString() : obj.createdAt.toString();
-  }
-  if (obj.updatedAt) {
-    obj.updatedAt = obj.updatedAt instanceof Date ? obj.updatedAt.toISOString() : obj.updatedAt.toString();
-  }
-  
-  // Handle arrays of documents
-  if (Array.isArray(obj.ratingDistribution)) {
-    obj.ratingDistribution = obj.ratingDistribution.map((item: any) => {
-      if (item && typeof item === 'object') {
-        return serializeDocument(item);
-      }
-      return item;
     });
+    
+    return obj;
   }
-  
-  if (Array.isArray(obj.reviews)) {
-    obj.reviews = obj.reviews.map((item: any) => {
-      if (item && typeof item === 'object') {
-        return serializeDocument(item);
-      }
-      return item;
-    });
-  }
-  
-  // Handle any other arrays in the object
-  for (const key in obj) {
-    if (Array.isArray(obj[key])) {
-      obj[key] = obj[key].map((item: any) => {
-        if (item && typeof item === 'object') {
-          return serializeDocument(item);
-        }
-        return item;
-      });
-    }
-  }
-  
-  return obj;
 }
 
 export async function createProduct(data: {
@@ -120,9 +104,13 @@ export async function createProduct(data: {
     };
 
     const product = await Product.create(productData)
+    
+    // Serialize the MongoDB document to a plain object
+    const serializedProduct = serializeDocument(product);
+    
     revalidatePath('/vendor/products')
     revalidatePath('/account/vendor-dashboard')
-    return { success: true, data: product }
+    return { success: true, data: serializedProduct }
   } catch (error) {
     console.error('Error creating product:', error)
     return { 
@@ -180,9 +168,12 @@ export async function updateProduct(productId: string, data: {
       throw new Error('Product not found')
     }
 
+    // Serialize the MongoDB document to a plain object
+    const serializedProduct = serializeDocument(product);
+
     revalidatePath('/vendor/products')
     revalidatePath('/account/vendor-dashboard')
-    return { success: true, data: product }
+    return { success: true, data: serializedProduct }
   } catch (error) {
     console.error('Error updating product:', error)
     return { success: false, message: error instanceof Error ? error.message : 'Failed to update product' }

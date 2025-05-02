@@ -143,7 +143,10 @@ export default function ProductEditForm({
         description: 'Product updated successfully!',
       });
       
-      router.push('/account/vendor-dashboard/manage-products');
+      // Add a slight delay before navigation to ensure state updates
+      setTimeout(() => {
+        router.push('/account/vendor-dashboard/manage-products');
+      }, 500);
       
     } catch (error) {
       console.error('Form submission error:', error);
