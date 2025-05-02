@@ -13,6 +13,9 @@ const publicPages = [
   '/cart/(.*)',
   '/product/(.*)',
   '/page/(.*)',
+  '/vendor/(.*)',
+  '/shops',
+  '/shop/(.*)',
   // (/secret requires auth)
 ]
 

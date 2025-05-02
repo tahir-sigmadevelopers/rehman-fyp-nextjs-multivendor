@@ -463,7 +463,7 @@ const products: IProductInput[] = [
     countInStock: 54,
     numSales: 21,
     description:
-      'Silver Jeans Co. Jace Slim Fit Bootcut Jeans - Consider Jace a modern cowboy jean. It sits below the waist and features a slim fit through the hip and thigh. Finished with an 18” bootcut leg opening that complements the slimmer silhouette while still fitting over boots',
+      'Silver Jeans Co. Jace Slim Fit Bootcut Jeans - Consider Jace a modern cowboy jean. It sits below the waist and features a slim fit through the hip and thigh. Finished with an 18" bootcut leg opening that complements the slimmer silhouette while still fitting over boots',
     sizes: ['30Wx30L', '34Wx30L', '36Wx30L'],
     colors: ['Blue', 'Grey'],
 
@@ -1077,7 +1077,7 @@ As we continue to grow, our commitment to quality and service remains unwavering
     {
       title: 'Contact Us',
       slug: 'contact-us',
-      content: `We’re here to help! If you have any questions, concerns, or feedback, please don’t hesitate to reach out to us. Our team is ready to assist you and ensure you have the best shopping experience.
+      content: `We're here to help! If you have any questions, concerns, or feedback, please don't hesitate to reach out to us. Our team is ready to assist you and ensure you have the best shopping experience.
 
 **Customer Support**
 For inquiries about orders, products, or account-related issues, contact our customer support team:
@@ -1138,7 +1138,7 @@ If you have questions or concerns, please reach out to us through our multiple c
 - **Phone:** +1 (123) 456-7890
 - **Live Chat:** Available on our website for instant assistance
 
-We also provide helpful resources such as order tracking, product guides, and FAQs to assist you with common inquiries. Your satisfaction is our priority, and we’re here to resolve any issues quickly and efficiently. Thank you for choosing us!`,
+We also provide helpful resources such as order tracking, product guides, and FAQs to assist you with common inquiries. Your satisfaction is our priority, and we're here to resolve any issues quickly and efficiently. Thank you for choosing us!`,
       isPublished: true,
     },
     {
@@ -1200,6 +1200,10 @@ We also provide helpful resources such as order tracking, product guides, and FA
     {
       name: 'Best Sellers',
       href: '/search?tag=best-seller',
+    },
+    {
+      name: 'Shops',
+      href: '/shops',
     },
     {
       name: 'Browsing History',

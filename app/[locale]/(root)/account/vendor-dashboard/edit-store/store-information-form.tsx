@@ -52,16 +52,24 @@ export default function StoreInformationForm({
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
-      const imageUrl = URL.createObjectURL(file);
-      setLogoPreview(imageUrl);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const imageUrl = reader.result as string;
+        setLogoPreview(imageUrl);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
   const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
-      const imageUrl = URL.createObjectURL(file);
-      setBannerPreview(imageUrl);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const imageUrl = reader.result as string;
+        setBannerPreview(imageUrl);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -71,16 +79,12 @@ export default function StoreInformationForm({
     try {
       setIsSubmitting(true);
       
-      // For a real implementation, you would upload images to a storage service
-      // and get back URLs. For this demo, we'll just use the existing URLs
-      // or the placeholder URLs
       const updateData = {
         userId: vendorId,
         brandName: values.brandName,
         description: values.description,
-        // In a real implementation, you would add:
-        // logo: uploadedLogoUrl,
-        // banner: uploadedBannerUrl
+        logo: logoPreview,
+        banner: bannerPreview
       };
       
       const response = await updateVendorInformation(updateData);
@@ -201,9 +205,6 @@ export default function StoreInformationForm({
                     <p className='text-sm text-muted-foreground'>
                       Recommended size: 200x200px. Max size: 2MB.
                     </p>
-                    <p className='text-xs text-muted-foreground'>
-                      Note: Image uploads are simulated in this demo.
-                    </p>
                   </div>
                 </div>
               </div>
@@ -258,19 +259,12 @@ export default function StoreInformationForm({
           </CardContent>
         </Card>
 
-        <div className='flex justify-end gap-4'>
-          <Button
-            type='button'
-            variant='outline'
-            onClick={() => router.push('/account/vendor-dashboard')}
-          >
-            Cancel
-          </Button>
-          <Button
+        <div className='flex justify-end'>
+          <Button 
             type='submit'
             disabled={isSubmitting}
           >
-            {isSubmitting ? 'Saving...' : 'Save Changes'}
+            {isSubmitting ? 'Updating...' : 'Save Changes'}
           </Button>
         </div>
       </form>
