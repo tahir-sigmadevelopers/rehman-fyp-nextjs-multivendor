@@ -176,7 +176,7 @@ export default function OverviewReport() {
         <div className='grid gap-4 md:grid-cols-2'>
           <Card>
             <CardHeader>
-              <CardTitle>{t('How much you’re earning')}</CardTitle>
+              <CardTitle>{t('How much you are earning')}</CardTitle>
               <CardDescription>
                 {t('Estimated')} · {t('Last 6 months')}
               </CardDescription>
