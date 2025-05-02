@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Metadata } from 'next'
 import { auth } from '@/auth'
 import { getVendorByUserId } from '@/lib/actions/vendor.server'
+import { getVendorOrders } from '@/lib/actions/order.actions'
 import { 
   InfoIcon, 
   ShoppingBag, 
@@ -18,7 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { cn } from '@/lib/utils'
+import { cn, formatDateTime, formatPrice } from '@/lib/utils'
 
 const PAGE_TITLE = 'Vendor Dashboard'
 export const metadata: Metadata = {
@@ -45,6 +46,20 @@ export default async function VendorDashboardPage() {
   const vendorResponse = await getVendorByUserId(session.user.id)
   const vendor = vendorResponse.success ? vendorResponse.data : null
   
+  // Fetch recent orders for this vendor
+  let recentOrders = []
+  if (vendor && vendor.isVendor && vendor.vendorDetails?.status === 'approved') {
+    const ordersResponse = await getVendorOrders({
+      vendorId: session.user.id,
+      page: 1,
+      limit: 3 // Just get the 3 most recent orders
+    })
+    
+    if (ordersResponse.success) {
+      recentOrders = ordersResponse.data
+    }
+  }
+  
   if (!vendor || !vendor.isVendor) {
     return (
       <div className="space-y-6">
@@ -68,19 +83,13 @@ export default async function VendorDashboardPage() {
     )
   }
 
-  const statusColors = {
+  const statusColors: Record<string, string> = {
     pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
     approved: "bg-green-100 text-green-800 border-green-200",
     rejected: "bg-red-100 text-red-800 border-red-200",
   }
 
-  // Mock data for the UI demonstration
-  const recentOrders = [
-    { id: 'ORD7891', date: 'Today, 2:30 PM', amount: '$129.95', status: 'Processing' },
-    { id: 'ORD6543', date: 'Yesterday, 11:20 AM', amount: '$89.00', status: 'Shipped' },
-    { id: 'ORD5432', date: '2 days ago', amount: '$54.50', status: 'Delivered' },
-  ]
-
+  // Mock data for the UI demonstration - only for top products
   const topProducts = [
     { name: 'Premium Headphones', sales: 28, revenue: '$2,800' },
     { name: 'Wireless Keyboard', sales: 24, revenue: '$1,920' },
@@ -157,6 +166,49 @@ export default async function VendorDashboardPage() {
       
       {vendor.vendorDetails?.status === 'approved' && (
         <>
+          {/* Quick Actions */}
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <Link href="/account/vendor-dashboard/new-product" className="flex items-center gap-3 rounded-lg border p-4 hover:bg-accent">
+              <div className="p-2 rounded-full bg-primary/10">
+                <ShoppingBag className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-medium">Add Product</h3>
+                <p className="text-sm text-muted-foreground">Create a new product listing</p>
+              </div>
+            </Link>
+            
+            <Link href="/account/vendor-dashboard/manage-products" className="flex items-center gap-3 rounded-lg border p-4 hover:bg-accent">
+              <div className="p-2 rounded-full bg-primary/10">
+                <Package className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-medium">Manage Products</h3>
+                <p className="text-sm text-muted-foreground">Edit or update your listings</p>
+              </div>
+            </Link>
+            
+            <Link href="/account/vendor-dashboard/orders" className="flex items-center gap-3 rounded-lg border p-4 hover:bg-accent">
+              <div className="p-2 rounded-full bg-primary/10">
+                <ShoppingBag className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-medium">Orders</h3>
+                <p className="text-sm text-muted-foreground">Manage customer orders</p>
+              </div>
+            </Link>
+            
+            <Link href="/account/vendor-dashboard/edit-store" className="flex items-center gap-3 rounded-lg border p-4 hover:bg-accent">
+              <div className="p-2 rounded-full bg-primary/10">
+                <InfoIcon className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-medium">Store Settings</h3>
+                <p className="text-sm text-muted-foreground">Update store information</p>
+              </div>
+            </Link>
+          </div>
+          
           {/* Stats Overview */}
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             <Card>
@@ -297,7 +349,7 @@ export default async function VendorDashboardPage() {
                     <CardDescription>Latest customer purchases</CardDescription>
                   </div>
                   <Button variant="ghost" className="gap-1" asChild>
-                    <Link href="/account/orders">
+                    <Link href="/account/vendor-dashboard/orders">
                       View All <ChevronRight className="h-4 w-4" />
                     </Link>
                   </Button>
@@ -315,18 +367,36 @@ export default async function VendorDashboardPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {recentOrders.map((order, i) => (
-                        <tr key={order.id} className={cn("border-b", i === recentOrders.length - 1 && "border-b-0")}>
-                          <td className="py-3 px-6 font-medium">{order.id}</td>
-                          <td className="py-3 px-6 text-muted-foreground">{order.date}</td>
-                          <td className="py-3 px-6">{order.amount}</td>
-                          <td className="py-3 px-6">
-                            <Badge variant={order.status === 'Processing' ? 'outline' : 'default'}>
-                              {order.status}
-                            </Badge>
+                      {recentOrders.length > 0 ? (
+                        recentOrders.map((order: any, i: number) => (
+                          <tr key={order._id} className={cn("border-b", i === recentOrders.length - 1 && "border-b-0")}>
+                            <td className="py-3 px-6 font-medium">
+                              <span className="font-mono text-xs">{order._id.substring(0, 10)}...</span>
+                            </td>
+                            <td className="py-3 px-6 text-muted-foreground">
+                              {formatDateTime(new Date(order.createdAt)).dateOnly}
+                            </td>
+                            <td className="py-3 px-6">
+                              {formatPrice(order.vendorItemsPrice || order.itemsPrice)}
+                            </td>
+                            <td className="py-3 px-6">
+                              <Badge variant={!order.isPaid ? 'outline' : order.isDelivered ? 'default' : 'secondary'}>
+                                {!order.isPaid 
+                                  ? 'Pending' 
+                                  : order.isDelivered 
+                                    ? 'Delivered' 
+                                    : 'Paid'}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={4} className="py-6 text-center text-muted-foreground">
+                            No orders yet
                           </td>
                         </tr>
-                      ))}
+                      )}
                     </tbody>
                   </table>
                 </div>

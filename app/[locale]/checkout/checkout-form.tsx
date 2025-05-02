@@ -137,29 +137,29 @@ const CheckoutForm = () => {
         return item;
       });
 
-      const res = await createOrder({
+    const res = await createOrder({
         items: validItems,
-        shippingAddress,
-        expectedDeliveryDate: calculateFutureDate(
-          availableDeliveryDates[deliveryDateIndex!].daysToDeliver
-        ),
-        deliveryDateIndex,
-        paymentMethod,
-        itemsPrice,
-        shippingPrice,
-        taxPrice,
-        totalPrice,
+      shippingAddress,
+      expectedDeliveryDate: calculateFutureDate(
+        availableDeliveryDates[deliveryDateIndex!].daysToDeliver
+      ),
+      deliveryDateIndex,
+      paymentMethod,
+      itemsPrice,
+      shippingPrice,
+      taxPrice,
+      totalPrice,
       });
       
-      if (!res.success) {
-        toast({
-          description: res.message,
-          variant: 'destructive',
+    if (!res.success) {
+      toast({
+        description: res.message,
+        variant: 'destructive',
         });
-      } else {
-        toast({
-          description: res.message,
-          variant: 'default',
+    } else {
+      toast({
+        description: res.message,
+        variant: 'default',
         });
         clearCart();
         router.push(`/checkout/${res.data?.orderId}`);

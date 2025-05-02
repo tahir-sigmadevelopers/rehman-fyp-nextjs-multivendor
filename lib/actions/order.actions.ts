@@ -538,3 +538,87 @@ async function getTopSalesCategories(date: DateRange, limit = 5) {
 
   return result
 }
+
+// GET VENDOR ORDERS
+export async function getVendorOrders({
+  vendorId,
+  limit,
+  page,
+}: {
+  vendorId: string
+  limit?: number
+  page: number
+}) {
+  try {
+    const {
+      common: { pageSize },
+    } = await getSetting()
+    limit = limit || pageSize
+    await connectToDatabase()
+    
+    // First, get all products for this vendor
+    const vendorProducts = await Product.find({ vendorId }).select('_id');
+    const vendorProductIds = vendorProducts.map(product => product._id.toString());
+    
+    if (vendorProductIds.length === 0) {
+      return {
+        success: true,
+        data: [],
+        totalPages: 0,
+      };
+    }
+    
+    const skipAmount = (Number(page) - 1) * limit;
+    
+    // Find orders that contain any products from this vendor
+    const orders = await Order.find({
+      "items.product": { $in: vendorProductIds }
+    })
+      .populate('user', 'name email')
+      .sort({ createdAt: 'desc' })
+      .skip(skipAmount)
+      .limit(limit);
+    
+    const ordersCount = await Order.countDocuments({
+      "items.product": { $in: vendorProductIds }
+    });
+    
+    // Process orders to only include items from this vendor
+    const vendorOrders = orders.map(order => {
+      const orderObj = order.toObject();
+      
+      // Filter items to only include this vendor's products
+      const vendorItems = orderObj.items.filter(item => 
+        vendorProductIds.includes(item.product.toString())
+      );
+      
+      // Calculate vendor's portion of the order
+      const itemsPrice = vendorItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      
+      return {
+        ...orderObj,
+        items: vendorItems,
+        itemsPrice,
+        // These values are specific to the vendor's portion
+        vendorItemsPrice: itemsPrice,
+        // Keep the original order total values for reference
+        orderTotalPrice: orderObj.totalPrice,
+      };
+    });
+    
+    // Serialize orders to ensure they can be passed to the client
+    const serializedOrders = JSON.parse(JSON.stringify(vendorOrders));
+    
+    return {
+      success: true,
+      data: serializedOrders,
+      totalPages: Math.ceil(ordersCount / limit),
+    };
+  } catch (error) {
+    console.error('Error getting vendor orders:', error);
+    return { 
+      success: false, 
+      message: error instanceof Error ? error.message : 'Failed to get vendor orders'
+    };
+  }
+}
