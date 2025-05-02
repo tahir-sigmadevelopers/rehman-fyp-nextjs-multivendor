@@ -2,11 +2,6 @@ import Link from 'next/link'
 import { Metadata } from 'next'
 import { auth } from '@/auth'
 import { getVendorByUserId } from '@/lib/actions/vendor.server'
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from '@/components/ui/alert'
 import { 
   InfoIcon, 
   ShoppingBag, 
@@ -35,13 +30,15 @@ export default async function VendorDashboardPage() {
   
   if (!session?.user?.id) {
     return (
-      <Alert>
-        <InfoIcon className="h-4 w-4" />
-        <AlertTitle>Authentication required</AlertTitle>
-        <AlertDescription>
-          Please <Link href="/sign-in" className="underline">sign in</Link> to access your vendor dashboard.
-        </AlertDescription>
-      </Alert>
+      <div className="relative w-full rounded-lg border p-4 bg-background">
+        <InfoIcon className="h-4 w-4 absolute left-4 top-4" />
+        <div className="pl-7">
+          <h5 className="mb-1 font-medium leading-none tracking-tight">Authentication required</h5>
+          <div className="text-sm">
+            Please <Link href="/sign-in" className="underline">sign in</Link> to access your vendor dashboard.
+          </div>
+        </div>
+      </div>
     )
   }
 
@@ -55,16 +52,18 @@ export default async function VendorDashboardPage() {
           <h1 className="h1-bold">{PAGE_TITLE}</h1>
         </div>
         
-        <Alert>
-          <InfoIcon className="h-4 w-4" />
-          <AlertTitle>Not a vendor</AlertTitle>
-          <AlertDescription>
-            You are not registered as a vendor. 
-            <Link href="/account/become-seller" className="underline ml-1">
-              Apply to become a seller
-            </Link>
-          </AlertDescription>
-        </Alert>
+        <div className="relative w-full rounded-lg border p-4 bg-background">
+          <InfoIcon className="h-4 w-4 absolute left-4 top-4" />
+          <div className="pl-7">
+            <h5 className="mb-1 font-medium leading-none tracking-tight">Not a vendor</h5>
+            <div className="text-sm">
+              You are not registered as a vendor. 
+              <Link href="/account/become-seller" className="underline ml-1">
+                Apply to become a seller
+              </Link>
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
@@ -110,38 +109,50 @@ export default async function VendorDashboardPage() {
           </div>
           
           {vendor.vendorDetails?.status === 'approved' && (
-            <Button asChild className="gap-2">
-              <Link href="/admin/products/new">
-                <ShoppingBag className="h-4 w-4" />
-                Add New Product
-              </Link>
-            </Button>
+            <div className="flex gap-2">
+              <Button asChild variant="outline" className="gap-2">
+                <Link href="/account/vendor-dashboard/manage-products">
+                  <Package className="h-4 w-4" />
+                  Manage Products
+                </Link>
+              </Button>
+              <Button asChild className="gap-2">
+                <Link href="/account/vendor-dashboard/new-product">
+                  <ShoppingBag className="h-4 w-4" />
+                  Add New Product
+                </Link>
+              </Button>
+            </div>
           )}
         </div>
       </div>
       
       {/* Application Status Alerts */}
       {vendor.vendorDetails?.status === 'pending' && (
-        <Alert className="bg-amber-50 border-amber-200 text-amber-800">
-          <InfoIcon className="h-5 w-5 text-amber-500" />
-          <AlertTitle className="text-amber-800 font-semibold text-base">Application Under Review</AlertTitle>
-          <AlertDescription className="text-amber-700">
-            Your application is currently being reviewed by our team. This process typically takes 2-3 business days.
-            While you wait, you can prepare product information and images for your store.
-          </AlertDescription>
-        </Alert>
+        <div className="relative w-full rounded-lg border p-4 bg-amber-50 border-amber-200 text-amber-800">
+          <InfoIcon className="h-5 w-5 text-amber-500 absolute left-4 top-4" />
+          <div className="pl-7">
+            <h5 className="mb-1 font-medium leading-none tracking-tight text-amber-800 font-semibold text-base">Application Under Review</h5>
+            <div className="text-sm text-amber-700">
+              Your application is currently being reviewed by our team. This process typically takes 2-3 business days.
+              While you wait, you can prepare product information and images for your store.
+            </div>
+          </div>
+        </div>
       )}
       
       {vendor.vendorDetails?.status === 'rejected' && (
-        <Alert className="bg-red-50 border-red-200 text-red-800">
-          <InfoIcon className="h-5 w-5 text-red-500" />
-          <AlertTitle className="text-red-800 font-semibold text-base">Application Rejected</AlertTitle>
-          <AlertDescription className="text-red-700">
-            Unfortunately, your vendor application has been rejected. This may be due to incomplete information 
-            or not meeting our vendor requirements. Please contact our support team for more details and information
-            on how to reapply.
-          </AlertDescription>
-        </Alert>
+        <div className="relative w-full rounded-lg border p-4 bg-red-50 border-red-200 text-red-800">
+          <InfoIcon className="h-5 w-5 text-red-500 absolute left-4 top-4" />
+          <div className="pl-7">
+            <h5 className="mb-1 font-medium leading-none tracking-tight text-red-800 font-semibold text-base">Application Rejected</h5>
+            <div className="text-sm text-red-700">
+              Unfortunately, your vendor application has been rejected. This may be due to incomplete information 
+              or not meeting our vendor requirements. Please contact our support team for more details and information
+              on how to reapply.
+            </div>
+          </div>
+        </div>
       )}
       
       {vendor.vendorDetails?.status === 'approved' && (
@@ -269,8 +280,10 @@ export default async function VendorDashboardPage() {
                 </div>
               </CardContent>
               <CardFooter className="pt-3">
-                <Button variant="outline" className="w-full">
-                  Edit Store Information
+                <Button variant="outline" className="w-full" asChild>
+                  <Link href="/account/vendor-dashboard/edit-store">
+                    Edit Store Information
+                  </Link>
                 </Button>
               </CardFooter>
             </Card>
@@ -350,7 +363,7 @@ export default async function VendorDashboardPage() {
               </CardContent>
               <CardFooter className="pt-3">
                 <Button variant="outline" className="w-full" asChild>
-                  <Link href="/admin/products">Manage Products</Link>
+                  <Link href="/account/vendor-dashboard/manage-products">Manage Products</Link>
                 </Button>
               </CardFooter>
             </Card>

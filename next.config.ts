@@ -10,6 +10,11 @@ const nextConfig: NextConfig = withNextIntl()({
         hostname: 'utfs.io',
         port: '',
       },
+      {
+        protocol: 'https',
+        hostname: 'placehold.co',
+        port: '',
+      },
     ],
   },
 })

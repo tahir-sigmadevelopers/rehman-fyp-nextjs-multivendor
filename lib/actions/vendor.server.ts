@@ -129,4 +129,50 @@ export async function getVendorStatus(userId: string) {
     console.error('Error checking vendor status:', error)
     return { success: false, message: error instanceof Error ? error.message : 'Failed to check vendor status' }
   }
+}
+
+export async function updateVendorInformation(data: {
+  userId: string
+  brandName: string
+  description: string
+  logo?: string
+  banner?: string
+}) {
+  try {
+    await connectToDatabase()
+
+    // Create update object
+    const updateData: any = {
+      'vendorDetails.brandName': data.brandName,
+      'vendorDetails.description': data.description,
+    }
+    
+    // Only update logo and banner if they are provided
+    if (data.logo) {
+      updateData['vendorDetails.logo'] = data.logo
+    }
+    
+    if (data.banner) {
+      updateData['vendorDetails.banner'] = data.banner
+    }
+
+    const user = await User.findByIdAndUpdate(
+      data.userId,
+      updateData,
+      { new: true }
+    )
+
+    if (!user) {
+      throw new Error('User not found')
+    }
+
+    // Convert Mongoose document to plain object
+    const userObject = user.toObject()
+
+    revalidatePath('/account/vendor-dashboard')
+    return { success: true, data: userObject }
+  } catch (error) {
+    console.error('Error updating vendor information:', error)
+    return { success: false, message: error instanceof Error ? error.message : 'Failed to update vendor information' }
+  }
 } 
