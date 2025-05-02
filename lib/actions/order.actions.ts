@@ -737,3 +737,78 @@ export async function getVendorSalesAnalytics(vendorId: string) {
     }
   }
 }
+
+// GET VENDOR TOP PRODUCTS
+export async function getVendorTopProducts(vendorId: string, limit: number = 5) {
+  try {
+    await connectToDatabase()
+    
+    // Get all products for this vendor
+    const vendorProducts = await Product.find({ vendorId }).select('_id')
+    const vendorProductIds = vendorProducts.map(product => product._id.toString())
+    
+    if (vendorProductIds.length === 0) {
+      return {
+        success: true,
+        data: []
+      }
+    }
+    
+    // Aggregate top selling products
+    const topProducts = await Order.aggregate([
+      // Match orders that contain vendor's products
+      {
+        $match: {
+          "items.product": { $in: vendorProductIds.map(id => new mongoose.Types.ObjectId(id)) }
+        }
+      },
+      // Unwind the items array
+      { $unwind: "$items" },
+      // Match only the items that belong to this vendor
+      {
+        $match: {
+          "items.product": { $in: vendorProductIds.map(id => new mongoose.Types.ObjectId(id)) }
+        }
+      },
+      // Group by product
+      {
+        $group: {
+          _id: {
+            productId: "$items.product",
+            name: "$items.name",
+            image: "$items.image"
+          },
+          totalSold: { $sum: "$items.quantity" },
+          totalRevenue: { $sum: { $multiply: ["$items.price", "$items.quantity"] } }
+        }
+      },
+      // Format the output
+      {
+        $project: {
+          _id: 0,
+          productId: "$_id.productId",
+          name: "$_id.name",
+          image: "$_id.image",
+          totalSold: 1,
+          totalRevenue: 1
+        }
+      },
+      // Sort by total sold in descending order
+      { $sort: { totalSold: -1 } },
+      // Limit to top N products
+      { $limit: limit }
+    ])
+    
+    return {
+      success: true,
+      data: topProducts
+    }
+    
+  } catch (error) {
+    console.error('Error getting vendor top products:', error)
+    return { 
+      success: false, 
+      message: error instanceof Error ? error.message : 'Failed to get top products' 
+    }
+  }
+}

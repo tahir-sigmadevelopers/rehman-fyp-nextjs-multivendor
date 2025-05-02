@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { Metadata } from 'next'
 import { auth } from '@/auth'
 import { getVendorByUserId } from '@/lib/actions/vendor.server'
-import { getVendorOrders, getVendorSalesAnalytics } from '@/lib/actions/order.actions'
+import { getVendorOrders, getVendorSalesAnalytics, getVendorTopProducts } from '@/lib/actions/order.actions'
 import { getVendorProducts } from '@/lib/actions/product.server'
 import { 
   InfoIcon, 
@@ -55,6 +55,7 @@ export default async function VendorDashboardPage() {
   let totalProducts = 0
   let activeProducts = 0
   let salesAnalytics: { month: string; amount: number }[] = []
+  let topProducts: { productId: string; name: string; image: string; totalSold: number; totalRevenue: number }[] = []
   
   if (vendor && vendor.isVendor && vendor.vendorDetails?.status === 'approved') {
     // Get vendor products
@@ -114,6 +115,13 @@ export default async function VendorDashboardPage() {
       recentOrders = recentOrdersResponse.data || []
       console.log('Recent orders:', recentOrders.length)
     }
+    
+    // Get top selling products
+    const topProductsResponse = await getVendorTopProducts(session.user.id, 3)
+    if (topProductsResponse.success) {
+      topProducts = topProductsResponse.data || []
+      console.log('Top products:', topProducts.length)
+    }
   }
   
   if (!vendor || !vendor.isVendor) {
@@ -144,13 +152,6 @@ export default async function VendorDashboardPage() {
     approved: "bg-green-100 text-green-800 border-green-200",
     rejected: "bg-red-100 text-red-800 border-red-200",
   }
-
-  // Mock data for the UI demonstration - only for top products
-  const topProducts = [
-    { name: 'Premium Headphones', sales: 28, revenue: '$2,800' },
-    { name: 'Wireless Keyboard', sales: 24, revenue: '$1,920' },
-    { name: 'HD Webcam', sales: 21, revenue: '$1,470' },
-  ]
 
   return (
     <div className="space-y-8">
@@ -466,26 +467,54 @@ export default async function VendorDashboardPage() {
                 <CardDescription>Your best selling items</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-6">
-                  {topProducts.map((product, i) => (
-                    <div key={i} className="flex items-start justify-between">
-                      <div className="space-y-1">
-                        <p className="font-medium">{product.name}</p>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs">{product.sales} sold</Badge>
-                          <span className="text-sm text-muted-foreground">{product.revenue}</span>
+                {topProducts.length > 0 ? (
+                  <div className="space-y-4">
+                    {topProducts.map((product, i) => (
+                      <div key={product.productId || i} className="flex items-start gap-3">
+                        {/* Product Image */}
+                        <div className="h-12 w-12 rounded-md border overflow-hidden flex-shrink-0">
+                          {product.image ? (
+                            <img 
+                              src={product.image} 
+                              alt={product.name} 
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="h-full w-full bg-muted flex items-center justify-center">
+                              <Package className="h-5 w-5 text-muted-foreground" />
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Product Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-start">
+                            <p className="font-medium text-sm truncate mb-1">{product.name}</p>
+                            <div className="flex">
+                              {/* Show 5, 4, or 3 stars based on position */}
+                              {Array.from({ length: 5 - i }).map((_, index) => (
+                                <Star key={index} className="h-3 w-3 fill-primary text-primary" />
+                              ))}
+                              {Array.from({ length: i }).map((_, index) => (
+                                <Star key={index} className="h-3 w-3 text-muted" />
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="outline" className="text-xs">{product.totalSold} sold</Badge>
+                            <span className="text-sm text-muted-foreground">{formatPrice(product.totalRevenue)}</span>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center">
-                        <div className="flex">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <Star key={star} className="h-4 w-4 fill-primary text-primary" />
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-muted-foreground">
+                    <ShoppingBag className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm mb-1">No sales data yet</p>
+                    <p className="text-xs">Start selling to see your top products</p>
+                  </div>
+                )}
               </CardContent>
               <CardFooter className="pt-3">
                 <Button variant="outline" className="w-full" asChild>
@@ -501,41 +530,7 @@ export default async function VendorDashboardPage() {
               </CardContent>
             </Card>
             
-            {/* Calendar & Events */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle>Upcoming</CardTitle>
-                <CardDescription>Store events and reminders</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-start space-x-4">
-                    <div className="p-2 bg-primary/10 rounded-full">
-                      <Calendar className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium">Product Launch</p>
-                      <p className="text-sm text-muted-foreground">June 15, 2023 • 10:00 AM</p>
-                    </div>
-                  </div>
-                  <Separator />
-                  <div className="flex items-start space-x-4">
-                    <div className="p-2 bg-primary/10 rounded-full">
-                      <Package className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium">Inventory Check</p>
-                      <p className="text-sm text-muted-foreground">June 20, 2023 • 2:00 PM</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter className="pt-0">
-                <Button variant="ghost" className="w-full gap-1">
-                  Add Event <Calendar className="h-4 w-4" />
-                </Button>
-              </CardFooter>
-            </Card>
+           
           </div>
         </>
       )}
