@@ -115,6 +115,16 @@ If you encounter any issues during deployment:
 3. Make sure your database is accessible from your hosting provider
 4. Check for any version compatibility issues between packages
 
+### Common Dependency Issues
+
+If you encounter dependency conflicts (especially with React versions), try these solutions:
+
+1. **React Version Compatibility**: The project has been configured to use React 18.3.1 for compatibility with libraries like PayPal React. If you see errors about React version conflicts, check that your package.json reflects this version.
+
+2. **Legacy Peer Dependencies**: The project uses the `--legacy-peer-deps` flag during installation to resolve peer dependency conflicts. This is configured in both `.npmrc` and `vercel.json`.
+
+3. **Manual Dependency Resolution**: If you still encounter issues, you may need to manually resolve dependencies by modifying versions in package.json or using npm's resolutions feature.
+
 ## Post-Deployment
 
 After successful deployment:
