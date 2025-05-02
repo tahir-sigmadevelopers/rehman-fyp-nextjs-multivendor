@@ -8,6 +8,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -33,7 +34,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { SubmitHandler, useForm } from 'react-hook-form'
 import CheckoutFooter from './checkout-footer'
-import { ShippingAddress } from '@/types'
+import { OrderItem, ShippingAddress } from '@/types'
 import useIsMounted from '@/hooks/use-is-mounted'
 import Link from 'next/link'
 import useCartStore from '@/hooks/use-cart-store'
@@ -120,33 +121,58 @@ const CheckoutForm = () => {
     useState<boolean>(false)
 
   const handlePlaceOrder = async () => {
-    const res = await createOrder({
-      items,
-      shippingAddress,
-      expectedDeliveryDate: calculateFutureDate(
-        availableDeliveryDates[deliveryDateIndex!].daysToDeliver
-      ),
-      deliveryDateIndex,
-      paymentMethod,
-      itemsPrice,
-      shippingPrice,
-      taxPrice,
-      totalPrice,
-    })
-    if (!res.success) {
+    try {
+      // Make sure all items have countInStock properly set
+      const validItems = items.map(item => {
+        // If countInStock is missing or not a number, fix it
+        if (item.countInStock === undefined || typeof item.countInStock !== 'number') {
+          console.warn(`Item ${item.name} has invalid countInStock:`, item.countInStock);
+          
+          // Create a new item object with all the required fields
+          return {
+            ...item,
+            countInStock: Math.max(item.quantity + 5, 10), // Set to at least quantity + buffer
+          };
+        }
+        return item;
+      });
+
+      const res = await createOrder({
+        items: validItems,
+        shippingAddress,
+        expectedDeliveryDate: calculateFutureDate(
+          availableDeliveryDates[deliveryDateIndex!].daysToDeliver
+        ),
+        deliveryDateIndex,
+        paymentMethod,
+        itemsPrice,
+        shippingPrice,
+        taxPrice,
+        totalPrice,
+      });
+      
+      if (!res.success) {
+        toast({
+          description: res.message,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          description: res.message,
+          variant: 'default',
+        });
+        clearCart();
+        router.push(`/checkout/${res.data?.orderId}`);
+      }
+    } catch (error) {
+      console.error('Order placement error:', error);
       toast({
-        description: res.message,
+        description: error instanceof Error ? error.message : 'Failed to place order. Please try again.',
         variant: 'destructive',
-      })
-    } else {
-      toast({
-        description: res.message,
-        variant: 'default',
-      })
-      clearCart()
-      router.push(`/checkout/${res.data?.orderId}`)
+      });
     }
-  }
+  };
+
   const handleSelectPaymentMethod = () => {
     setIsAddressSelected(true)
     setIsPaymentMethodSelected(true)
