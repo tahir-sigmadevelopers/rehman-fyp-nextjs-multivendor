@@ -565,8 +565,14 @@ export async function getVendorOrders({
         success: true,
         data: [],
         totalPages: 0,
+        totalOrders: 0
       };
     }
+    
+    // Count total orders for this vendor (for statistics)
+    const ordersCount = await Order.countDocuments({
+      "items.product": { $in: vendorProductIds }
+    });
     
     const skipAmount = (Number(page) - 1) * limit;
     
@@ -578,10 +584,6 @@ export async function getVendorOrders({
       .sort({ createdAt: 'desc' })
       .skip(skipAmount)
       .limit(limit);
-    
-    const ordersCount = await Order.countDocuments({
-      "items.product": { $in: vendorProductIds }
-    });
     
     // Process orders to only include items from this vendor
     const vendorOrders = orders.map(order => {
@@ -613,6 +615,7 @@ export async function getVendorOrders({
       success: true,
       data: serializedOrders,
       totalPages: Math.ceil(ordersCount / limit),
+      totalOrders: ordersCount
     };
   } catch (error) {
     console.error('Error getting vendor orders:', error);

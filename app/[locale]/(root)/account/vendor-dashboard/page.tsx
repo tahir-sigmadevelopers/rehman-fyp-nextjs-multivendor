@@ -3,6 +3,7 @@ import { Metadata } from 'next'
 import { auth } from '@/auth'
 import { getVendorByUserId } from '@/lib/actions/vendor.server'
 import { getVendorOrders } from '@/lib/actions/order.actions'
+import { getVendorProducts } from '@/lib/actions/product.server'
 import { 
   InfoIcon, 
   ShoppingBag, 
@@ -48,15 +49,46 @@ export default async function VendorDashboardPage() {
   
   // Fetch recent orders for this vendor
   let recentOrders = []
+  let totalOrders = 0
+  let totalRevenue = 0
+  let totalProducts = 0
+  let activeProducts = 0
+  
   if (vendor && vendor.isVendor && vendor.vendorDetails?.status === 'approved') {
-    const ordersResponse = await getVendorOrders({
+    // Get vendor products
+    const productsResponse = await getVendorProducts(session.user.id)
+    if (productsResponse.success) {
+      totalProducts = productsResponse.data.length
+      activeProducts = productsResponse.data.filter(product => product.isPublished).length
+    }
+    
+    // Get all vendor orders for revenue calculation
+    const allOrdersResponse = await getVendorOrders({
+      vendorId: session.user.id,
+      page: 1,
+      limit: 1000 // Get a large number to calculate total revenue
+    })
+    
+    // Get recent orders for display
+    const recentOrdersResponse = await getVendorOrders({
       vendorId: session.user.id,
       page: 1,
       limit: 3 // Just get the 3 most recent orders
     })
     
-    if (ordersResponse.success) {
-      recentOrders = ordersResponse.data
+    if (recentOrdersResponse.success) {
+      recentOrders = recentOrdersResponse.data
+    }
+    
+    if (allOrdersResponse.success) {
+      totalOrders = allOrdersResponse.totalOrders || 0
+      
+      // Calculate total revenue from all vendor orders
+      if (allOrdersResponse.data && allOrdersResponse.data.length > 0) {
+        totalRevenue = allOrdersResponse.data.reduce((sum, order) => 
+          sum + (order.vendorItemsPrice || order.itemsPrice || 0), 0
+        )
+      }
     }
   }
   
@@ -216,7 +248,7 @@ export default async function VendorDashboardPage() {
                 <div className="flex items-center justify-between space-x-2">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Total Revenue</p>
-                    <p className="text-2xl font-bold">$4,929.00</p>
+                    <p className="text-2xl font-bold">{formatPrice(totalRevenue)}</p>
                   </div>
                   <div className="p-2 bg-primary/10 rounded-full">
                     <CircleDollarSign className="h-6 w-6 text-primary" />
@@ -224,7 +256,7 @@ export default async function VendorDashboardPage() {
                 </div>
                 <div className="mt-3 flex items-center gap-1 text-sm text-green-600">
                   <TrendingUp className="h-4 w-4" />
-                  <span>+12.5% from last month</span>
+                  <span>From {totalOrders} orders</span>
                 </div>
               </CardContent>
             </Card>
@@ -234,7 +266,7 @@ export default async function VendorDashboardPage() {
                 <div className="flex items-center justify-between space-x-2">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Total Orders</p>
-                    <p className="text-2xl font-bold">34</p>
+                    <p className="text-2xl font-bold">{totalOrders}</p>
                   </div>
                   <div className="p-2 bg-primary/10 rounded-full">
                     <Package className="h-6 w-6 text-primary" />
@@ -252,14 +284,14 @@ export default async function VendorDashboardPage() {
                 <div className="flex items-center justify-between space-x-2">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Total Products</p>
-                    <p className="text-2xl font-bold">12</p>
+                    <p className="text-2xl font-bold">{totalProducts}</p>
                   </div>
                   <div className="p-2 bg-primary/10 rounded-full">
                     <ShoppingBag className="h-6 w-6 text-primary" />
                   </div>
                 </div>
                 <div className="mt-3 flex items-center gap-1 text-sm text-muted-foreground">
-                  <span>4 active listings</span>
+                  <span>{activeProducts} active listings</span>
                 </div>
               </CardContent>
             </Card>
