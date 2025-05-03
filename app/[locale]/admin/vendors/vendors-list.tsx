@@ -18,10 +18,21 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Check, X, Eye } from 'lucide-react'
+import { Check, X, Eye, Trash2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
-import { getAllVendors, updateVendorStatus } from '@/lib/actions/vendor.server'
+import { getAllVendors, updateVendorStatus, deleteVendor } from '@/lib/actions/vendor.server'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 type Vendor = {
   _id: string
@@ -103,6 +114,31 @@ export default function VendorsList() {
       toast({
         variant: 'destructive',
         description: 'An error occurred while updating vendor status',
+      })
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleDeleteVendor = async (vendorId: string) => {
+    try {
+      setActionLoading(vendorId)
+      const response = await deleteVendor(vendorId)
+      if (response.success) {
+        setVendors(vendors.filter(vendor => vendor._id !== vendorId))
+        toast({
+          description: `Vendor deleted successfully. ${response.deletedProducts ? `${response.deletedProducts} product(s) were also removed.` : ''}`,
+        })
+      } else {
+        toast({
+          variant: 'destructive',
+          description: response.message || "Failed to delete vendor",
+        })
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        description: 'An error occurred while deleting vendor',
       })
     } finally {
       setActionLoading(null)
@@ -244,6 +280,37 @@ export default function VendorsList() {
                         </Button>
                       </>
                     )}
+                    
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="icon"
+                          disabled={actionLoading === vendor._id}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Vendor</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete this vendor? This will remove all vendor privileges from the user
+                            and permanently delete all products created by this vendor.
+                            This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction 
+                            onClick={() => handleDeleteVendor(vendor._id)}
+                            className="bg-red-500 hover:bg-red-600"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </TableCell>
               </TableRow>

@@ -2,6 +2,7 @@
 
 import { connectToDatabase } from '@/lib/db'
 import User from '@/lib/db/models/user.model'
+import Product from '@/lib/db/models/product.model'
 import { revalidatePath } from 'next/cache'
 
 // Helper function to serialize MongoDB documents to plain objects
@@ -227,5 +228,42 @@ export async function updateVendorInformation(data: {
   } catch (error) {
     console.error('Error updating vendor information:', error)
     return { success: false, message: error instanceof Error ? error.message : 'Failed to update vendor information' }
+  }
+}
+
+export async function deleteVendor(userId: string) {
+  try {
+    await connectToDatabase()
+
+    // First, delete all products associated with this vendor
+    const deleteProductsResult = await Product.deleteMany({ vendorId: userId })
+    console.log(`Deleted ${deleteProductsResult.deletedCount} products for vendor ${userId}`)
+
+    // Then, update the user to remove vendor status
+    const user = await User.findByIdAndUpdate(
+      userId,
+      {
+        isVendor: false,
+        vendorDetails: null,
+      },
+      { new: true }
+    )
+
+    if (!user) {
+      throw new Error('User not found')
+    }
+
+    // Convert Mongoose document to plain object
+    const serializedUser = serializeDocument(user);
+
+    revalidatePath('/admin/vendors')
+    return { 
+      success: true, 
+      data: serializedUser,
+      deletedProducts: deleteProductsResult.deletedCount
+    }
+  } catch (error) {
+    console.error('Error deleting vendor:', error)
+    return { success: false, message: error instanceof Error ? error.message : 'Failed to delete vendor' }
   }
 } 
