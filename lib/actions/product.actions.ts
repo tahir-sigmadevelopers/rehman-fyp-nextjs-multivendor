@@ -11,7 +11,7 @@ import { getSetting } from './setting.actions'
 import mockupProducts from '../mockup-data'
 
 // Helper to check if we should use mockup data
-const useMockData = () => process.env.USE_MOCK_DATA === 'true'
+const useMockData = () => false // Set to false to use the database
 
 // CREATE
 export async function createProduct(data: IProductInput) {

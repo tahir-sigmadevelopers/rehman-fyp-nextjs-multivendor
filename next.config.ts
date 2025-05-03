@@ -33,7 +33,7 @@ const nextConfig: NextConfig = withNextIntl()({
     ],
   },
   env: {
-    USE_MOCK_DATA: 'true',
+    USE_MOCK_DATA: 'false',
   },
 })
 
