@@ -25,7 +25,15 @@ const nextConfig: NextConfig = withNextIntl()({
         hostname: 'placehold.co',
         port: '',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        port: '',
+      },
     ],
+  },
+  env: {
+    USE_MOCK_DATA: 'true',
   },
 })
 

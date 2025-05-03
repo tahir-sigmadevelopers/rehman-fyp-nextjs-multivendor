@@ -8,6 +8,10 @@ import { ProductInputSchema, ProductUpdateSchema } from '../validator'
 import { IProductInput } from '@/types'
 import { z } from 'zod'
 import { getSetting } from './setting.actions'
+import mockupProducts from '../mockup-data'
+
+// Helper to check if we should use mockup data
+const useMockData = () => process.env.USE_MOCK_DATA === 'true'
 
 // CREATE
 export async function createProduct(data: IProductInput) {
@@ -121,12 +125,18 @@ export async function getAllProductsForAdmin({
 }
 
 export async function getAllCategories() {
+  if (useMockData()) {
+    const categories = [...new Set(mockupProducts.map(product => product.category))]
+    return categories
+  }
+  
   await connectToDatabase()
   const categories = await Product.find({ isPublished: true }).distinct(
     'category'
   )
   return categories
 }
+
 export async function getProductsForCard({
   tag,
   limit = 4,
@@ -134,6 +144,18 @@ export async function getProductsForCard({
   tag: string
   limit?: number
 }) {
+  if (useMockData()) {
+    const products = mockupProducts
+      .filter(product => product.tags.includes(tag))
+      .slice(0, limit)
+      .map(product => ({
+        name: product.name,
+        href: `/product/${product.slug}`,
+        image: product.images[0],
+      }))
+    return products
+  }
+  
   await connectToDatabase()
   const products = await Product.find(
     { tags: { $in: [tag] }, isPublished: true },
@@ -151,6 +173,7 @@ export async function getProductsForCard({
     image: string
   }[]
 }
+
 // GET PRODUCTS BY TAG
 export async function getProductsByTag({
   tag,
@@ -159,6 +182,13 @@ export async function getProductsByTag({
   tag: string
   limit?: number
 }) {
+  if (useMockData()) {
+    const products = mockupProducts
+      .filter(product => product.tags.includes(tag))
+      .slice(0, limit)
+    return products
+  }
+  
   await connectToDatabase()
   const products = await Product.find({
     tags: { $in: [tag] },
@@ -171,11 +201,18 @@ export async function getProductsByTag({
 
 // GET ONE PRODUCT BY SLUG
 export async function getProductBySlug(slug: string) {
+  if (useMockData()) {
+    const product = mockupProducts.find(p => p.slug === slug)
+    if (!product) throw new Error('Product not found')
+    return product
+  }
+
   await connectToDatabase()
   const product = await Product.findOne({ slug, isPublished: true })
   if (!product) throw new Error('Product not found')
   return JSON.parse(JSON.stringify(product)) as IProduct
 }
+
 // GET RELATED PRODUCTS: PRODUCTS WITH SAME CATEGORY
 export async function getRelatedProductsByCategory({
   category,
@@ -188,6 +225,20 @@ export async function getRelatedProductsByCategory({
   limit?: number
   page: number
 }) {
+  if (useMockData()) {
+    const allProducts = mockupProducts
+      .filter(p => p.category === category && p._id !== productId)
+    
+    const products = allProducts
+      .sort((a, b) => b.numSales - a.numSales)
+      .slice((page - 1) * limit, page * limit)
+    
+    return {
+      data: products,
+      totalPages: Math.ceil(allProducts.length / limit),
+    }
+  }
+  
   const {
     common: { pageSize },
   } = await getSetting()
@@ -230,6 +281,82 @@ export async function getAllProducts({
   rating?: string
   sort?: string
 }) {
+  if (useMockData()) {
+    const {
+      common: { pageSize },
+    } = await getSetting()
+    limit = limit || pageSize
+    
+    let filteredProducts = [...mockupProducts]
+    
+    // Apply query filter
+    if (query && query !== 'all') {
+      const queryRegex = new RegExp(query, 'i')
+      filteredProducts = filteredProducts.filter(product => 
+        queryRegex.test(product.name)
+      )
+    }
+    
+    // Apply category filter
+    if (category && category !== 'all') {
+      filteredProducts = filteredProducts.filter(product => 
+        product.category === category
+      )
+    }
+    
+    // Apply tag filter
+    if (tag && tag !== 'all') {
+      filteredProducts = filteredProducts.filter(product => 
+        product.tags.includes(tag)
+      )
+    }
+    
+    // Apply price filter
+    if (price && price !== 'all') {
+      const [min, max] = price.split('-').map(Number)
+      filteredProducts = filteredProducts.filter(product => 
+        product.price >= min && (max ? product.price <= max : true)
+      )
+    }
+    
+    // Apply rating filter
+    if (rating && rating !== 'all') {
+      const ratingValue = Number(rating)
+      filteredProducts = filteredProducts.filter(product => 
+        product.avgRating >= ratingValue
+      )
+    }
+    
+    // Apply sorting
+    if (sort) {
+      if (sort === 'best-selling') {
+        filteredProducts.sort((a, b) => b.numSales - a.numSales)
+      } else if (sort === 'price-low-to-high') {
+        filteredProducts.sort((a, b) => a.price - b.price)
+      } else if (sort === 'price-high-to-low') {
+        filteredProducts.sort((a, b) => b.price - a.price)
+      } else if (sort === 'avg-customer-review') {
+        filteredProducts.sort((a, b) => b.avgRating - a.avgRating)
+      } else {
+        // Default sort by newest
+        filteredProducts.sort((a, b) => b._id.localeCompare(a._id))
+      }
+    }
+    
+    const totalProducts = filteredProducts.length
+    const totalPages = Math.ceil(totalProducts / limit)
+    const startIndex = (page - 1) * limit
+    const products = filteredProducts.slice(startIndex, startIndex + limit)
+    
+    return {
+      products,
+      totalPages,
+      totalProducts,
+      from: startIndex + 1,
+      to: Math.min(startIndex + limit, totalProducts),
+    }
+  }
+  
   const {
     common: { pageSize },
   } = await getSetting()
