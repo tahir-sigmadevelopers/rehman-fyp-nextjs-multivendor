@@ -101,9 +101,10 @@ export const OrderInputSchema = z.object({
   user: z.union([
     MongoId,
     z.object({
-      name: z.string(),
-      email: z.string().email(),
-    }),
+      name: z.string().min(1, 'Name is required'),
+      email: z.string().email('Valid email is required'),
+      isGuest: z.boolean().optional(),
+    }).passthrough(),
   ]),
   items: z
     .array(OrderItemSchema)
@@ -147,6 +148,10 @@ export const CartSchema = z.object({
   shippingAddress: z.optional(ShippingAddressSchema),
   deliveryDateIndex: z.optional(z.number()),
   expectedDeliveryDate: z.optional(z.date()),
+  userInfo: z.optional(z.object({
+    name: z.string(),
+    email: z.string().email(),
+  })),
 })
 
 // USER

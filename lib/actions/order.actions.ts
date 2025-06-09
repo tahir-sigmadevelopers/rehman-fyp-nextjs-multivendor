@@ -20,24 +20,61 @@ export const createOrder = async (clientSideCart: Cart) => {
   try {
     await connectToDatabase()
     const session = await auth()
-    if (!session) throw new Error('User not authenticated')
-    // recalculate price and delivery date on the server
-    const createdOrder = await createOrderFromCart(
-      clientSideCart,
-      session.user.id!
-    )
+    
+    // If no authenticated user, use the guest order function
+    if (!session?.user?.id) {
+      return createGuestOrder(clientSideCart)
+    }
+    
+    // For authenticated users, use the normal flow
+    const cart = {
+      ...clientSideCart,
+      ...calcDeliveryDateAndPrice({
+        items: clientSideCart.items,
+        shippingAddress: clientSideCart.shippingAddress,
+        deliveryDateIndex: clientSideCart.deliveryDateIndex,
+      }),
+    }
+    
+    // Create order with authenticated user
+    const orderData = {
+      user: session.user.id,
+      items: cart.items,
+      shippingAddress: cart.shippingAddress,
+      paymentMethod: cart.paymentMethod,
+      itemsPrice: cart.itemsPrice,
+      shippingPrice: cart.shippingPrice,
+      taxPrice: cart.taxPrice,
+      totalPrice: cart.totalPrice,
+      expectedDeliveryDate: cart.expectedDeliveryDate,
+    }
+    
+    // Parse with zod schema
+    const validatedOrder = OrderInputSchema.parse(orderData)
+    
+    // Create the order with Mongoose
+    const createdOrder = await Order.create(validatedOrder)
+    
     return {
       success: true,
       message: 'Order placed successfully',
-      data: { orderId: createdOrder._id.toString() },
+      data: {
+        orderId: createdOrder._id.toString(),
+        isGuest: false
+      }
     }
   } catch (error) {
-    return { success: false, message: formatError(error) }
+    console.error('Order creation error:', error)
+    return {
+      success: false,
+      message: formatError(error)
+    }
   }
 }
+
 export const createOrderFromCart = async (
   clientSideCart: Cart,
-  userId: string
+  userId: string | { name: string; email: string; isGuest?: boolean }
 ) => {
   const cart = {
     ...clientSideCart,
@@ -47,8 +84,9 @@ export const createOrderFromCart = async (
       deliveryDateIndex: clientSideCart.deliveryDateIndex,
     }),
   }
-
-  const order = OrderInputSchema.parse({
+  
+  // Create order data with proper validation
+  const orderData = {
     user: userId,
     items: cart.items,
     shippingAddress: cart.shippingAddress,
@@ -58,8 +96,19 @@ export const createOrderFromCart = async (
     taxPrice: cart.taxPrice,
     totalPrice: cart.totalPrice,
     expectedDeliveryDate: cart.expectedDeliveryDate,
-  })
-  return await Order.create(order)
+  };
+
+  // Parse with zod schema
+  const validatedOrder = OrderInputSchema.parse(orderData);
+  
+  try {
+    // Create the order with the validated data
+    const order = await Order.create(validatedOrder);
+    return order;
+  } catch (error) {
+    console.error("Order creation error:", error);
+    throw error;
+  }
 }
 
 export async function updateOrderToPaid(orderId: string) {
@@ -209,8 +258,27 @@ export async function getMyOrders({
 }
 export async function getOrderById(orderId: string): Promise<IOrder> {
   await connectToDatabase()
-  const order = await Order.findById(orderId)
-  return JSON.parse(JSON.stringify(order))
+  try {
+    const order = await Order.findById(orderId)
+    if (!order) {
+      throw new Error('Order not found')
+    }
+    
+    // If the user is a string (ObjectId), try to populate it
+    if (typeof order.user === 'string') {
+      try {
+        await order.populate('user', 'name email')
+      } catch (error) {
+        console.log('Error populating user:', error)
+        // Continue even if population fails
+      }
+    }
+    
+    return JSON.parse(JSON.stringify(order))
+  } catch (error) {
+    console.error('Error getting order by ID:', error)
+    throw error
+  }
 }
 
 export async function createPayPalOrder(orderId: string) {
@@ -812,3 +880,75 @@ export async function getVendorTopProducts(vendorId: string, limit: number = 5) 
     }
   }
 }
+
+// Special function for guest checkout that bypasses Mongoose
+export const createGuestOrder = async (clientSideCart: Cart) => {
+  try {
+    await connectToDatabase();
+    
+    // Prepare the cart data
+    const cart = {
+      ...clientSideCart,
+      ...calcDeliveryDateAndPrice({
+        items: clientSideCart.items,
+        shippingAddress: clientSideCart.shippingAddress,
+        deliveryDateIndex: clientSideCart.deliveryDateIndex,
+      }),
+    };
+    
+    // Ensure we have user info
+    if (!clientSideCart.userInfo?.name || !clientSideCart.userInfo?.email) {
+      return { 
+        success: false, 
+        message: 'User name and email are required for guest checkout'
+      };
+    }
+    
+    // Use direct MongoDB driver to insert the document
+    const db = mongoose.connection.db;
+    const orderCollection = db.collection('orders');
+    
+    // Create the order document
+    const orderDoc = {
+      user: {
+        name: clientSideCart.userInfo.name,
+        email: clientSideCart.userInfo.email,
+        isGuest: true
+      },
+      items: cart.items,
+      shippingAddress: cart.shippingAddress,
+      paymentMethod: cart.paymentMethod,
+      itemsPrice: cart.itemsPrice,
+      shippingPrice: cart.shippingPrice,
+      taxPrice: cart.taxPrice,
+      totalPrice: cart.totalPrice,
+      expectedDeliveryDate: cart.expectedDeliveryDate,
+      isPaid: false,
+      isDelivered: false,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    // Insert directly using MongoDB driver
+    const result = await orderCollection.insertOne(orderDoc);
+    
+    if (!result.acknowledged) {
+      throw new Error('Failed to create guest order');
+    }
+    
+    return {
+      success: true,
+      message: 'Guest order placed successfully',
+      data: {
+        orderId: result.insertedId.toString(),
+        isGuest: true
+      }
+    };
+  } catch (error) {
+    console.error('Guest order creation error:', error);
+    return {
+      success: false,
+      message: formatError(error)
+    };
+  }
+};

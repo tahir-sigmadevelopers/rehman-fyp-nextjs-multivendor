@@ -11,6 +11,8 @@ const publicPages = [
   '/sign-up',
   '/cart',
   '/cart/(.*)',
+  '/checkout',
+  '/checkout/(.*)',
   '/product/(.*)',
   '/page/(.*)',
   '/vendor/(.*)',

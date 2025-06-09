@@ -23,6 +23,9 @@ const CheckoutPaymentPage = async (props: {
   if (!order) notFound()
 
   const session = await auth()
+  
+  // Check if this is a guest order by checking if user is an object with name/email instead of a string ID
+  const isGuestOrder = typeof order.user === 'object' && order.user !== null
 
   let client_secret = null
   if (order.paymentMethod === 'Stripe' && !order.isPaid) {
@@ -40,6 +43,7 @@ const CheckoutPaymentPage = async (props: {
       paypalClientId={process.env.PAYPAL_CLIENT_ID || 'sb'}
       clientSecret={client_secret}
       isAdmin={session?.user?.role === 'Admin' || false}
+      isGuestOrder={isGuestOrder}
     />
   )
 }

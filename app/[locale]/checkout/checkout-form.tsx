@@ -1,6 +1,6 @@
 'use client'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardFooter } from '@/components/ui/card'
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
   FormControl,
@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { createOrder } from '@/lib/actions/order.actions'
+import { createDirectOrder } from '@/lib/actions/direct-order'
 import {
   calculateFutureDate,
   formatDateTime,
@@ -40,6 +41,8 @@ import Link from 'next/link'
 import useCartStore from '@/hooks/use-cart-store'
 import useSettingStore from '@/hooks/use-setting-store'
 import ProductPrice from '@/components/shared/product/product-price'
+import { CheckCircle, CircleUser, MapPin, CreditCard, Package } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 const shippingAddressDefaultValues =
   process.env.NODE_ENV === 'development'
@@ -94,6 +97,27 @@ const CheckoutForm = () => {
   } = useCartStore()
   const isMounted = useIsMounted()
 
+  const [userInfo, setUserInfo] = useState({
+    email: '',
+    name: '',
+  })
+
+  const userInfoForm = useForm({
+    defaultValues: userInfo,
+  })
+
+  const onSubmitUserInfo: SubmitHandler<typeof userInfo> = (values) => {
+    setUserInfo(values)
+    setIsUserInfoSubmitted(true)
+  }
+
+  const [isUserInfoSubmitted, setIsUserInfoSubmitted] = useState(false)
+  const [isAddressSelected, setIsAddressSelected] = useState<boolean>(false)
+  const [isPaymentMethodSelected, setIsPaymentMethodSelected] =
+    useState<boolean>(false)
+  const [isDeliveryDateSelected, setIsDeliveryDateSelected] =
+    useState<boolean>(false)
+
   const shippingAddressForm = useForm<ShippingAddress>({
     resolver: zodResolver(ShippingAddressSchema),
     defaultValues: shippingAddress || shippingAddressDefaultValues,
@@ -114,60 +138,72 @@ const CheckoutForm = () => {
     shippingAddressForm.setValue('phone', shippingAddress.phone)
   }, [items, isMounted, router, shippingAddress, shippingAddressForm])
 
-  const [isAddressSelected, setIsAddressSelected] = useState<boolean>(false)
-  const [isPaymentMethodSelected, setIsPaymentMethodSelected] =
-    useState<boolean>(false)
-  const [isDeliveryDateSelected, setIsDeliveryDateSelected] =
-    useState<boolean>(false)
-
   const handlePlaceOrder = async () => {
     try {
-      // Make sure all items have countInStock properly set
-      const validItems = items.map(item => {
-        // If countInStock is missing or not a number, fix it
-        if (item.countInStock === undefined || typeof item.countInStock !== 'number') {
-          console.warn(`Item ${item.name} has invalid countInStock:`, item.countInStock);
-          
-          // Create a new item object with all the required fields
-          return {
-            ...item,
-            countInStock: Math.max(item.quantity + 5, 10), // Set to at least quantity + buffer
-          };
-        }
-        return item;
-      });
+      const validItems = items.map(item => ({
+        ...item,
+        countInStock: item.countInStock || Math.max(item.quantity + 5, 10),
+      }));
 
-    const res = await createOrder({
+      // Validate user info is present
+      if (!userInfo.name || !userInfo.email) {
+        toast({
+          description: 'Please provide your name and email before placing the order',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Ensure shipping address is selected
+      if (!shippingAddress) {
+        toast({
+          description: 'Please provide a shipping address',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Create a clean guest user object - keep it as simple as possible
+      const guestUser = {
+        name: userInfo.name.trim(),
+        email: userInfo.email.trim()
+      };
+
+      console.log("Submitting order with guest user:", guestUser);
+
+      // Use direct MongoDB approach for guest users
+      const res = await createDirectOrder({
+        guestUser,
         items: validItems,
-      shippingAddress,
-      expectedDeliveryDate: calculateFutureDate(
-        availableDeliveryDates[deliveryDateIndex!].daysToDeliver
-      ),
-      deliveryDateIndex,
-      paymentMethod,
-      itemsPrice,
-      shippingPrice,
-      taxPrice,
-      totalPrice,
+        shippingAddress,
+        paymentMethod,
+        itemsPrice,
+        shippingPrice,
+        taxPrice,
+        totalPrice,
+        expectedDeliveryDate: calculateFutureDate(
+          availableDeliveryDates[deliveryDateIndex!].daysToDeliver
+        ),
       });
       
-    if (!res.success) {
-      toast({
-        description: res.message,
-        variant: 'destructive',
+      if (!res.success) {
+        console.error("Order placement error:", res.message);
+        toast({
+          description: `Error: ${res.message}`,
+          variant: 'destructive',
         });
-    } else {
-      toast({
-        description: res.message,
-        variant: 'default',
+      } else {
+        toast({
+          description: 'Order placed successfully as guest. Please save your order number for reference.',
+          variant: 'default',
         });
         clearCart();
         router.push(`/checkout/${res.data?.orderId}`);
       }
     } catch (error) {
-      console.error('Order placement error:', error);
+      console.error("Order placement error:", error);
       toast({
-        description: error instanceof Error ? error.message : 'Failed to place order. Please try again.',
+        description: `An error occurred while placing your order: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: 'destructive',
       });
     }
@@ -181,12 +217,15 @@ const CheckoutForm = () => {
     shippingAddressForm.handleSubmit(onSubmitShippingAddress)()
   }
   const CheckoutSummary = () => (
-    <Card>
+    <Card className="shadow-sm sticky top-4">
+      <CardHeader className="bg-gray-50 border-b py-3">
+        <CardTitle className="text-lg">Order Summary</CardTitle>
+      </CardHeader>
       <CardContent className='p-4'>
         {!isAddressSelected && (
           <div className='border-b mb-4'>
             <Button
-              className='rounded-full w-full'
+              className='rounded-full w-full bg-primary hover:bg-primary/90'
               onClick={handleSelectShippingAddress}
             >
               Ship to this address
@@ -198,9 +237,9 @@ const CheckoutForm = () => {
           </div>
         )}
         {isAddressSelected && !isPaymentMethodSelected && (
-          <div className=' mb-4'>
+          <div className='mb-4'>
             <Button
-              className='rounded-full w-full'
+              className='rounded-full w-full bg-primary hover:bg-primary/90'
               onClick={handleSelectPaymentMethod}
             >
               Use this payment method
@@ -215,7 +254,7 @@ const CheckoutForm = () => {
         )}
         {isPaymentMethodSelected && isAddressSelected && (
           <div>
-            <Button onClick={handlePlaceOrder} className='rounded-full w-full'>
+            <Button onClick={handlePlaceOrder} className='rounded-full w-full bg-green-600 hover:bg-green-700 text-white'>
               Place Your Order
             </Button>
             <p className='text-xs text-center py-2'>
@@ -226,30 +265,29 @@ const CheckoutForm = () => {
           </div>
         )}
 
-        <div>
-          <div className='text-lg font-bold'>Order Summary</div>
-          <div className='space-y-2'>
+        <div className="mt-4">
+          <div className='space-y-3'>
             <div className='flex justify-between'>
-              <span>Items:</span>
-              <span>
+              <span className="text-sm text-muted-foreground">Items:</span>
+              <span className="font-medium">
                 <ProductPrice price={itemsPrice} plain />
               </span>
             </div>
             <div className='flex justify-between'>
-              <span>Shipping & Handling:</span>
-              <span>
+              <span className="text-sm text-muted-foreground">Shipping & Handling:</span>
+              <span className="font-medium">
                 {shippingPrice === undefined ? (
                   '--'
                 ) : shippingPrice === 0 ? (
-                  'FREE'
+                  <span className="text-green-600">FREE</span>
                 ) : (
                   <ProductPrice price={shippingPrice} plain />
                 )}
               </span>
             </div>
             <div className='flex justify-between'>
-              <span> Tax:</span>
-              <span>
+              <span className="text-sm text-muted-foreground">Tax:</span>
+              <span className="font-medium">
                 {taxPrice === undefined ? (
                   '--'
                 ) : (
@@ -257,202 +295,357 @@ const CheckoutForm = () => {
                 )}
               </span>
             </div>
-            <div className='flex justify-between  pt-4 font-bold text-lg'>
-              <span> Order Total:</span>
-              <span>
+            <div className='flex justify-between pt-3 border-t mt-2'>
+              <span className="font-bold">Order Total:</span>
+              <span className="font-bold text-lg">
                 <ProductPrice price={totalPrice} plain />
               </span>
             </div>
+          </div>
+        </div>
+        
+        {/* Order Items Summary */}
+        <div className="mt-6 border-t pt-4">
+          <h3 className="font-medium mb-3">Items in your order ({items.reduce((acc, item) => acc + item.quantity, 0)})</h3>
+          <div className="space-y-4">
+            {items.map((item) => (
+              <div key={item.clientId} className="flex gap-3">
+                <div className="relative w-16 h-16 flex-shrink-0">
+                  <Image
+                    src={item.image}
+                    alt={item.name}
+                    fill
+                    sizes="64px"
+                    style={{ objectFit: 'contain' }}
+                    className="rounded-md"
+                  />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium line-clamp-2">{item.name}</p>
+                  <p className="text-xs text-muted-foreground">Qty: {item.quantity}</p>
+                  <p className="text-sm font-medium mt-1">
+                    <ProductPrice price={item.price * item.quantity} plain />
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </CardContent>
     </Card>
   )
 
+  // Checkout progress step component
+  const CheckoutStep = ({ 
+    number, 
+    title, 
+    isActive, 
+    isCompleted, 
+    icon 
+  }: { 
+    number: number; 
+    title: string; 
+    isActive: boolean; 
+    isCompleted: boolean;
+    icon: React.ReactNode;
+  }) => (
+    <div className={`flex items-center gap-2 ${isActive ? 'text-primary' : isCompleted ? 'text-muted-foreground' : 'text-muted-foreground'}`}>
+      <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
+        isCompleted ? 'bg-green-100 text-green-600' : 
+        isActive ? 'bg-primary text-white' : 
+        'bg-gray-100 text-gray-400'
+      }`}>
+        {isCompleted ? <CheckCircle className="w-5 h-5" /> : icon}
+      </div>
+      <span className={`font-medium ${isActive ? 'text-primary' : ''}`}>{title}</span>
+    </div>
+  );
+
   return (
     <main className='max-w-6xl mx-auto highlight-link'>
+      {/* Checkout Progress */}
+      <div className="mb-8 p-4 bg-white rounded-lg shadow-sm">
+        <div className="flex flex-col md:flex-row justify-between gap-4 md:items-center">
+          <CheckoutStep 
+            number={1} 
+            title="Your Information" 
+            isActive={!isUserInfoSubmitted} 
+            isCompleted={isUserInfoSubmitted}
+            icon={<CircleUser className="w-5 h-5" />}
+          />
+          <div className="hidden md:block border-t border-gray-200 flex-grow mx-2"></div>
+          <CheckoutStep 
+            number={2} 
+            title="Shipping Address" 
+            isActive={isUserInfoSubmitted && !isAddressSelected} 
+            isCompleted={isAddressSelected}
+            icon={<MapPin className="w-5 h-5" />}
+          />
+          <div className="hidden md:block border-t border-gray-200 flex-grow mx-2"></div>
+          <CheckoutStep 
+            number={3} 
+            title="Payment Method" 
+            isActive={isAddressSelected && !isPaymentMethodSelected} 
+            isCompleted={isPaymentMethodSelected}
+            icon={<CreditCard className="w-5 h-5" />}
+          />
+          <div className="hidden md:block border-t border-gray-200 flex-grow mx-2"></div>
+          <CheckoutStep 
+            number={4} 
+            title="Review & Place Order" 
+            isActive={isPaymentMethodSelected} 
+            isCompleted={false}
+            icon={<Package className="w-5 h-5" />}
+          />
+        </div>
+      </div>
+
       <div className='grid md:grid-cols-4 gap-6'>
         <div className='md:col-span-3'>
-          {/* shipping address */}
+          {/* User Information */}
           <div>
-            {isAddressSelected && shippingAddress ? (
-              <div className='grid grid-cols-1 md:grid-cols-12    my-3  pb-3'>
-                <div className='col-span-5 flex text-lg font-bold '>
-                  <span className='w-8'>1 </span>
-                  <span>Shipping address</span>
-                </div>
-                <div className='col-span-5 '>
-                  <p>
-                    {shippingAddress.fullName} <br />
-                    {shippingAddress.street} <br />
-                    {`${shippingAddress.city}, ${shippingAddress.province}, ${shippingAddress.postalCode}, ${shippingAddress.country}`}
-                  </p>
-                </div>
-                <div className='col-span-2'>
-                  <Button
-                    variant={'outline'}
-                    onClick={() => {
-                      setIsAddressSelected(false)
-                      setIsPaymentMethodSelected(true)
-                      setIsDeliveryDateSelected(true)
-                    }}
-                  >
-                    Change
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className='flex text-primary text-lg font-bold my-2'>
-                  <span className='w-8'>1 </span>
-                  <span>Enter shipping address</span>
-                </div>
-                <Form {...shippingAddressForm}>
-                  <form
-                    method='post'
-                    onSubmit={shippingAddressForm.handleSubmit(
-                      onSubmitShippingAddress
-                    )}
-                    className='space-y-4'
-                  >
-                    <Card className='md:ml-8 my-4'>
-                      <CardContent className='p-4 space-y-2'>
-                        <div className='text-lg font-bold mb-2'>
-                          Your address
-                        </div>
-
-                        <div className='flex flex-col gap-5 md:flex-row'>
-                          <FormField
-                            control={shippingAddressForm.control}
-                            name='fullName'
-                            render={({ field }) => (
-                              <FormItem className='w-full'>
-                                <FormLabel>Full Name</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    placeholder='Enter full name'
-                                    {...field}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                        <div>
-                          <FormField
-                            control={shippingAddressForm.control}
-                            name='street'
-                            render={({ field }) => (
-                              <FormItem className='w-full'>
-                                <FormLabel>Address</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    placeholder='Enter address'
-                                    {...field}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                        <div className='flex flex-col gap-5 md:flex-row'>
-                          <FormField
-                            control={shippingAddressForm.control}
-                            name='city'
-                            render={({ field }) => (
-                              <FormItem className='w-full'>
-                                <FormLabel>City</FormLabel>
-                                <FormControl>
-                                  <Input placeholder='Enter city' {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={shippingAddressForm.control}
-                            name='province'
-                            render={({ field }) => (
-                              <FormItem className='w-full'>
-                                <FormLabel>Province</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    placeholder='Enter province'
-                                    {...field}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={shippingAddressForm.control}
-                            name='country'
-                            render={({ field }) => (
-                              <FormItem className='w-full'>
-                                <FormLabel>Country</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    placeholder='Enter country'
-                                    {...field}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                        <div className='flex flex-col gap-5 md:flex-row'>
-                          <FormField
-                            control={shippingAddressForm.control}
-                            name='postalCode'
-                            render={({ field }) => (
-                              <FormItem className='w-full'>
-                                <FormLabel>Postal Code</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    placeholder='Enter postal code'
-                                    {...field}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={shippingAddressForm.control}
-                            name='phone'
-                            render={({ field }) => (
-                              <FormItem className='w-full'>
-                                <FormLabel>Phone number</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    placeholder='Enter phone number'
-                                    {...field}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                      </CardContent>
-                      <CardFooter className='  p-4'>
-                        <Button
-                          type='submit'
-                          className='rounded-full font-bold'
-                        >
-                          Ship to this address
-                        </Button>
-                      </CardFooter>
-                    </Card>
+            <div className='flex text-primary text-lg font-bold my-2'>
+              <span className='w-8'>1 </span>
+              <span>Your Information</span>
+              <span className="ml-2 text-sm font-normal self-center">(Guest Checkout)</span>
+            </div>
+            {!isUserInfoSubmitted ? (
+              <Card className='md:ml-8 my-4 shadow-sm border-primary/20'>
+                <CardContent className='p-6'>
+                  <div className="bg-blue-50 border border-blue-100 rounded-md p-3 mb-4">
+                    <p className="text-sm text-blue-700">
+                      Complete your information below to continue as a guest. No account is required.
+                    </p>
+                  </div>
+                  <form onSubmit={userInfoForm.handleSubmit(onSubmitUserInfo)} className='space-y-4'>
+                    <div className='space-y-2'>
+                      <Label htmlFor='name' className="text-sm font-medium">Full Name</Label>
+                      <Input
+                        id='name'
+                        placeholder="Enter your full name"
+                        className="focus-visible:ring-primary"
+                        {...userInfoForm.register('name', { required: true })}
+                      />
+                      {userInfoForm.formState.errors.name && (
+                        <p className="text-xs text-red-500">Full name is required</p>
+                      )}
+                    </div>
+                    <div className='space-y-2'>
+                      <Label htmlFor='email' className="text-sm font-medium">Email Address</Label>
+                      <Input
+                        id='email'
+                        type='email'
+                        placeholder="Enter your email address"
+                        className="focus-visible:ring-primary"
+                        {...userInfoForm.register('email', { required: true })}
+                      />
+                      {userInfoForm.formState.errors.email && (
+                        <p className="text-xs text-red-500">Valid email is required</p>
+                      )}
+                      <p className="text-xs text-muted-foreground">We'll send your order confirmation to this email address.</p>
+                    </div>
+                    <Button type='submit' className='rounded-full w-full bg-primary hover:bg-primary/90'>
+                      Continue to Shipping
+                    </Button>
                   </form>
-                </Form>
-              </>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className='flex text-muted-foreground text-lg font-bold my-4 py-3'>
+                <span className='w-8'>1 </span>
+                <span>Your Information</span>
+              </div>
             )}
           </div>
+
+          {/* Shipping Address */}
+          {isUserInfoSubmitted && (
+            <div>
+              <div className='flex text-primary text-lg font-bold my-2'>
+                <span className='w-8'>2 </span>
+                <span>Shipping Address</span>
+              </div>
+              <div>
+                {isAddressSelected && shippingAddress ? (
+                  <div className='grid grid-cols-1 md:grid-cols-12    my-3  pb-3'>
+                    <div className='col-span-5 flex text-lg font-bold '>
+                      <span className='w-8'>1 </span>
+                      <span>Shipping address</span>
+                    </div>
+                    <div className='col-span-5 '>
+                      <p>
+                        {shippingAddress.fullName} <br />
+                        {shippingAddress.street} <br />
+                        {`${shippingAddress.city}, ${shippingAddress.province}, ${shippingAddress.postalCode}, ${shippingAddress.country}`}
+                      </p>
+                    </div>
+                    <div className='col-span-2'>
+                      <Button
+                        variant={'outline'}
+                        onClick={() => {
+                          setIsAddressSelected(false)
+                          setIsPaymentMethodSelected(true)
+                          setIsDeliveryDateSelected(true)
+                        }}
+                      >
+                        Change
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className='flex text-primary text-lg font-bold my-2'>
+                      <span className='w-8'>1 </span>
+                      <span>Enter shipping address</span>
+                    </div>
+                    <Form {...shippingAddressForm}>
+                      <form
+                        method='post'
+                        onSubmit={shippingAddressForm.handleSubmit(
+                          onSubmitShippingAddress
+                        )}
+                        className='space-y-4'
+                      >
+                        <Card className='md:ml-8 my-4'>
+                          <CardContent className='p-4 space-y-2'>
+                            <div className='text-lg font-bold mb-2'>
+                              Your address
+                            </div>
+
+                            <div className='flex flex-col gap-5 md:flex-row'>
+                              <FormField
+                                control={shippingAddressForm.control}
+                                name='fullName'
+                                render={({ field }) => (
+                                  <FormItem className='w-full'>
+                                    <FormLabel>Full Name</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        placeholder='Enter full name'
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                            <div>
+                              <FormField
+                                control={shippingAddressForm.control}
+                                name='street'
+                                render={({ field }) => (
+                                  <FormItem className='w-full'>
+                                    <FormLabel>Address</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        placeholder='Enter address'
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                            <div className='flex flex-col gap-5 md:flex-row'>
+                              <FormField
+                                control={shippingAddressForm.control}
+                                name='city'
+                                render={({ field }) => (
+                                  <FormItem className='w-full'>
+                                    <FormLabel>City</FormLabel>
+                                    <FormControl>
+                                      <Input placeholder='Enter city' {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={shippingAddressForm.control}
+                                name='province'
+                                render={({ field }) => (
+                                  <FormItem className='w-full'>
+                                    <FormLabel>Province</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        placeholder='Enter province'
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={shippingAddressForm.control}
+                                name='country'
+                                render={({ field }) => (
+                                  <FormItem className='w-full'>
+                                    <FormLabel>Country</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        placeholder='Enter country'
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                            <div className='flex flex-col gap-5 md:flex-row'>
+                              <FormField
+                                control={shippingAddressForm.control}
+                                name='postalCode'
+                                render={({ field }) => (
+                                  <FormItem className='w-full'>
+                                    <FormLabel>Postal Code</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        placeholder='Enter postal code'
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={shippingAddressForm.control}
+                                name='phone'
+                                render={({ field }) => (
+                                  <FormItem className='w-full'>
+                                    <FormLabel>Phone number</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        placeholder='Enter phone number'
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          </CardContent>
+                          <CardFooter className='  p-4'>
+                            <Button
+                              type='submit'
+                              className='rounded-full font-bold'
+                            >
+                              Ship to this address
+                            </Button>
+                          </CardFooter>
+                        </Card>
+                      </form>
+                    </Form>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
           {/* payment method */}
           <div className='border-y'>
             {isPaymentMethodSelected && paymentMethod ? (

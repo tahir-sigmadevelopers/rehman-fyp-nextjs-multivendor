@@ -58,7 +58,8 @@ export type IOrderList = IOrderInput & {
   user: {
     name: string
     email: string
-  }
+    isGuest?: boolean
+  } | string
   createdAt: Date
 }
 export type OrderItem = z.infer<typeof OrderItemSchema>
@@ -99,3 +100,19 @@ export type SiteLanguage = z.infer<typeof SiteLanguageSchema>
 export type SiteCurrency = z.infer<typeof SiteCurrencySchema>
 export type PaymentMethod = z.infer<typeof PaymentMethodSchema>
 export type DeliveryDate = z.infer<typeof DeliveryDateSchema>
+
+export interface Cart {
+  items: OrderItem[]
+  itemsPrice: number
+  shippingPrice: number
+  taxPrice: number
+  totalPrice: number
+  shippingAddress?: ShippingAddress
+  paymentMethod?: string
+  deliveryDateIndex?: number
+  expectedDeliveryDate?: Date
+  userInfo?: {
+    name: string
+    email: string
+  }
+}

@@ -7,7 +7,6 @@ export default {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     authorized({ request, auth }: any) {
       const protectedPaths = [
-        /\/checkout(\/.*)?/,
         /\/account(\/.*)?/,
         /\/admin(\/.*)?/,
       ]

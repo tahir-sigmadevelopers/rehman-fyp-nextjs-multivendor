@@ -10,7 +10,15 @@ export const connectToDatabase = async (
 
   if (!MONGODB_URI) throw new Error('MONGODB_URI is missing')
 
-  cached.promise = cached.promise || mongoose.connect(MONGODB_URI)
+  // Set mongoose options to be more flexible with schema validation
+  mongoose.set('strictQuery', false);
+  
+  // For Mongoose 6+, these are the correct options
+  const options = {
+    // No specific options needed - strictQuery is set globally above
+  };
+
+  cached.promise = cached.promise || mongoose.connect(MONGODB_URI, options);
 
   cached.conn = await cached.promise
 

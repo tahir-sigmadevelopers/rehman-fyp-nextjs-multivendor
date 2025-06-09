@@ -27,11 +27,11 @@ export default function CheckoutLayout({
           <div>
             <h1 className='text-3xl'>Checkout</h1>
           </div>
-          <div>
+          {/* <div>
             <Link href='/page/help'>
               <HelpCircle className='w-6 h-6' />
             </Link>
-          </div>
+          </div> */}
         </div>
       </header>
       {children}
