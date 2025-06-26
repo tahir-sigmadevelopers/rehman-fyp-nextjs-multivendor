@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { cn, formatDateTime, formatPrice } from '@/lib/utils'
 import SalesChart from './sales-chart'
+import { VendorOrdersCard } from './components/orders-card'
 
 const PAGE_TITLE = 'Vendor Dashboard'
 export const metadata: Metadata = {
@@ -51,6 +52,7 @@ export default async function VendorDashboardPage() {
   // Fetch recent orders for this vendor
   let recentOrders = []
   let totalOrders = 0
+  let pendingOrders = 0
   let totalRevenue = 0
   let totalProducts = 0
   let activeProducts = 0
@@ -85,21 +87,24 @@ export default async function VendorDashboardPage() {
         totalOrders = analyticsResponse.data.totalOrders
       }
     } else {
-      // Fallback to getting all orders for revenue calculation
+      // Fallback to getting vendor orders for revenue calculation
       const allOrdersResponse = await getVendorOrders({
         vendorId: session.user.id,
         page: 1,
         limit: 1000 // Get a large number to calculate total revenue
       })
       
-      if (allOrdersResponse.success) {
-        totalOrders = allOrdersResponse.totalOrders || 0
+      if (allOrdersResponse.data) {
+        totalOrders = allOrdersResponse.data.length
         
-        // Calculate total revenue from all vendor orders
+        // Calculate total revenue from all orders
         if (allOrdersResponse.data && allOrdersResponse.data.length > 0) {
           totalRevenue = allOrdersResponse.data.reduce((sum: number, order: any) => 
-            sum + (order.vendorItemsPrice || order.itemsPrice || 0), 0
+            sum + (order.totalPrice || 0), 0
           )
+          
+          // Calculate pending orders count
+          pendingOrders = allOrdersResponse.data.filter((order: any) => !order.isPaid).length
         }
       }
     }
@@ -111,7 +116,7 @@ export default async function VendorDashboardPage() {
       limit: 3 // Just get the 3 most recent orders
     })
     
-    if (recentOrdersResponse.success) {
+    if (recentOrdersResponse.data) {
       recentOrders = recentOrdersResponse.data || []
       console.log('Recent orders:', recentOrders.length)
     }
@@ -223,6 +228,101 @@ export default async function VendorDashboardPage() {
       
       {vendor.vendorDetails?.status === 'approved' && (
         <>
+          {/* Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Orders Card */}
+            <VendorOrdersCard 
+              initialStats={{
+                pendingOrders,
+                totalOrders,
+                totalSales: totalRevenue,
+              }}
+            />
+            
+            {/* Other stats cards here */}
+            <Card className="overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between bg-muted/50 p-4">
+                <CardTitle className="text-base font-medium">Products</CardTitle>
+                <Package className="h-5 w-5 text-muted-foreground" />
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="grid gap-6">
+                  <div className="space-y-2">
+                    <div className="text-2xl font-bold">{totalProducts}</div>
+                    <div className="text-xs text-muted-foreground uppercase">Total Products</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <div className="text-xl font-bold">{activeProducts}</div>
+                      <div className="text-xs text-muted-foreground uppercase">
+                        Active
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="text-xl font-bold">{totalProducts - activeProducts}</div>
+                      <div className="text-xs text-muted-foreground uppercase">
+                        Drafts
+                      </div>
+                    </div>
+                  </div>
+                  <Link
+                    href="/account/vendor-dashboard/manage-products"
+                    className="text-sm font-medium text-primary hover:underline"
+                  >
+                    Manage products
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between bg-muted/50 p-4">
+                <CardTitle className="text-base font-medium">Revenue</CardTitle>
+                <CircleDollarSign className="h-5 w-5 text-muted-foreground" />
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="grid gap-6">
+                  <div className="space-y-2">
+                    <div className="text-2xl font-bold">{formatPrice(totalRevenue)}</div>
+                    <div className="text-xs text-muted-foreground uppercase">Total Revenue</div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-xs text-muted-foreground uppercase mb-1">Revenue by Month</div>
+                    <div className="h-[40px] w-full">
+                      {salesAnalytics.length > 0 && (
+                        <div className="flex items-end justify-between gap-1 h-full">
+                          {salesAnalytics.slice(-6).map((item, i) => {
+                            const maxValue = Math.max(...salesAnalytics.map(s => s.amount));
+                            const height = maxValue > 0 
+                              ? Math.max(15, (item.amount / maxValue) * 100) 
+                              : 15;
+                            return (
+                              <div key={i} className="flex flex-col items-center gap-1 flex-1">
+                                <div 
+                                  className="bg-primary/80 rounded-sm w-full" 
+                                  style={{ height: `${height}%` }}
+                                ></div>
+                                <span className="text-[9px] text-muted-foreground">
+                                  {item.month.split('-')[1]}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <Link
+                    href="/account/vendor-dashboard/sales"
+                    className="text-sm font-medium text-primary hover:underline"
+                  >
+                    View analytics
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           {/* Quick Actions */}
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
             <Link href="/account/vendor-dashboard/new-product" className="flex items-center gap-3 rounded-lg border p-4 hover:bg-accent">
@@ -264,80 +364,6 @@ export default async function VendorDashboardPage() {
                 <p className="text-sm text-muted-foreground">Update store information</p>
               </div>
             </Link>
-          </div>
-          
-          {/* Stats Overview */}
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between space-x-2">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total Revenue</p>
-                    <p className="text-2xl font-bold">{formatPrice(totalRevenue)}</p>
-                  </div>
-                  <div className="p-2 bg-primary/10 rounded-full">
-                    <CircleDollarSign className="h-6 w-6 text-primary" />
-                  </div>
-                </div>
-                <div className="mt-3 flex items-center gap-1 text-sm text-green-600">
-                  <TrendingUp className="h-4 w-4" />
-                  <span>From {totalOrders} orders</span>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between space-x-2">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total Orders</p>
-                    <p className="text-2xl font-bold">{totalOrders}</p>
-                  </div>
-                  <div className="p-2 bg-primary/10 rounded-full">
-                    <Package className="h-6 w-6 text-primary" />
-                  </div>
-                </div>
-                <div className="mt-3 flex items-center gap-1 text-sm text-green-600">
-                  <TrendingUp className="h-4 w-4" />
-                  <span>+8.2% from last month</span>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between space-x-2">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total Products</p>
-                    <p className="text-2xl font-bold">{totalProducts}</p>
-                  </div>
-                  <div className="p-2 bg-primary/10 rounded-full">
-                    <ShoppingBag className="h-6 w-6 text-primary" />
-                  </div>
-                </div>
-                <div className="mt-3 flex items-center gap-1 text-sm text-muted-foreground">
-                  <span>{activeProducts} active listings</span>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between space-x-2">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Customers</p>
-                    <p className="text-2xl font-bold">21</p>
-                  </div>
-                  <div className="p-2 bg-primary/10 rounded-full">
-                    <Users className="h-6 w-6 text-primary" />
-                  </div>
-                </div>
-                <div className="mt-3 flex items-center gap-1 text-sm text-green-600">
-                  <TrendingUp className="h-4 w-4" />
-                  <span>+14.3% from last month</span>
-                </div>
-              </CardContent>
-            </Card>
           </div>
           
           {/* Main Grid */}

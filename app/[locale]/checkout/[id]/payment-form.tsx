@@ -55,7 +55,11 @@ export default function OrderDetailsForm({
   const { toast } = useToast()
 
   if (isPaid) {
-    redirect(`/account/orders/${order._id}`)
+    if (isGuestOrder) {
+      redirect(`/orders/guest/${order._id}`)
+    } else {
+      redirect(`/account/orders/${order._id}`)
+    }
   }
   function PrintLoadingState() {
     const [{ isPending, isRejected }] = usePayPalScriptReducer()
@@ -181,7 +185,7 @@ export default function OrderDetailsForm({
                 </div>
                 <Button
                   className='w-full rounded-full bg-primary hover:bg-primary/90'
-                  onClick={() => router.push(`/account/orders/${order._id}`)}
+                  onClick={() => router.push(isGuestOrder ? `/orders/guest/${order._id}` : `/account/orders/${order._id}`)}
                 >
                   View Order
                 </Button>

@@ -62,10 +62,17 @@ const orderSchema = new Schema<IOrder>(
   }
 )
 
-// Remove all middleware to avoid any processing of the user field
-orderSchema.pre('save', function() {
-  // Do nothing - just bypass any automatic processing
-  return;
+// Middleware to ensure product IDs are always saved as ObjectIds
+orderSchema.pre('save', function(next) {
+  // Convert product IDs to ObjectIds if they're strings
+  if (this.items && Array.isArray(this.items)) {
+    this.items.forEach(item => {
+      if (item.product && typeof item.product === 'string' && mongoose.Types.ObjectId.isValid(item.product)) {
+        item.product = new mongoose.Types.ObjectId(item.product);
+      }
+    });
+  }
+  next();
 });
 
 const Order =

@@ -74,13 +74,23 @@ export default function VendorOrdersTable({
   
   // Fetch orders when the page changes
   const fetchOrders = async (page: number) => {
+    console.log('Fetching vendor orders for page:', page)
     setIsLoading(true)
     try {
-      const response = await getVendorOrders({ vendorId, page })
-      if (response.success) {
+      const response = await getVendorOrders({ 
+        vendorId, 
+        page 
+      })
+      if (response.data) {
+        console.log('Orders fetched successfully:', {
+          page,
+          count: response.data?.length || 0,
+          totalPages: response.totalPages
+        })
         setOrders(response.data || [])
         setFilteredOrders(response.data || [])
       } else {
+        console.error('Failed to fetch orders')
         toast({
           variant: 'destructive',
           description: 'Failed to load orders. Please try again.',
@@ -99,6 +109,12 @@ export default function VendorOrdersTable({
   
   // Filter orders when search query or status filter changes
   useEffect(() => {
+    console.log('Filtering orders with:', {
+      statusFilter,
+      searchQuery: searchQuery ? `"${searchQuery}"` : 'none',
+      totalOrdersBeforeFilter: orders.length
+    })
+    
     let filtered = [...orders]
     
     // Apply status filter
@@ -109,11 +125,15 @@ export default function VendorOrdersTable({
         if (statusFilter === ORDER_STATUS.DELIVERED) return order.isDelivered
         return true
       })
+      console.log(`After status filter (${statusFilter}):`, filtered.length, 'orders remaining')
     }
     
     // Apply search filter
     if (searchQuery.trim()) {
       const lowercaseQuery = searchQuery.toLowerCase()
+      console.log('Applying search filter with query:', lowercaseQuery)
+      
+      const beforeSearchCount = filtered.length
       filtered = filtered.filter(order => 
         // Search by order ID
         order._id.toLowerCase().includes(lowercaseQuery) ||
@@ -122,24 +142,37 @@ export default function VendorOrdersTable({
         // Search by product name
         order.items.some((item: any) => item.name.toLowerCase().includes(lowercaseQuery))
       )
+      
+      console.log('After search filter:', {
+        beforeCount: beforeSearchCount,
+        afterCount: filtered.length,
+        matchedOrders: filtered.length,
+        removedOrders: beforeSearchCount - filtered.length
+      })
     }
     
+    console.log('Final filtered orders count:', filtered.length)
     setFilteredOrders(filtered)
   }, [searchQuery, statusFilter, orders])
   
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value)
+    const newValue = e.target.value
+    console.log('Search query changed:', { from: searchQuery, to: newValue })
+    setSearchQuery(newValue)
   }
   
   const clearSearch = () => {
+    console.log('Search cleared')
     setSearchQuery('')
   }
   
   const handleStatusChange = (value: string) => {
+    console.log('Status filter changed:', { from: statusFilter, to: value })
     setStatusFilter(value as OrderStatus)
   }
   
   const handlePageChange = (page: number) => {
+    console.log('Page changed:', { from: currentPage, to: page })
     router.push(`/account/vendor-dashboard/orders?page=${page}`)
     fetchOrders(page)
   }
@@ -241,7 +274,7 @@ export default function VendorOrdersTable({
                     </div>
                   </TableCell>
                   <TableCell>
-                    {formatPrice(order.vendorItemsPrice || order.itemsPrice)}
+                    {formatPrice(order.totalPrice)}
                   </TableCell>
                   <TableCell>
                     {getOrderStatusBadge(order)}
@@ -258,7 +291,7 @@ export default function VendorOrdersTable({
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem asChild>
-                          <Link href={`/account/orders/${order._id}`}>
+                          <Link href={`/account/vendor-dashboard/orders/${order._id}`}>
                             <ExternalLink className="mr-2 h-4 w-4" />
                             View Details
                           </Link>
@@ -319,4 +352,4 @@ export default function VendorOrdersTable({
       )}
     </div>
   )
-} 
+}

@@ -30,6 +30,18 @@ export async function createDirectOrder(orderData: DirectOrderInput) {
     const db = mongoose.connection.db
     const orderCollection = db.collection('orders')
     
+    // Process items to convert product IDs to ObjectIds
+    const processedItems = orderData.items.map(item => ({
+      ...item,
+      // Convert string product ID to ObjectId
+      product: new mongoose.Types.ObjectId(item.product)
+    }));
+    
+    console.log('Direct order - converting product IDs to ObjectIds:', {
+      before: orderData.items[0]?.product,
+      after: processedItems[0]?.product
+    });
+    
     // Create order document
     const orderDoc = {
       // Use a plain object for user to avoid ObjectId casting
@@ -38,7 +50,7 @@ export async function createDirectOrder(orderData: DirectOrderInput) {
         email: orderData.guestUser.email,
         isGuest: true
       },
-      items: orderData.items,
+      items: processedItems,
       shippingAddress: orderData.shippingAddress,
       paymentMethod: orderData.paymentMethod,
       itemsPrice: orderData.itemsPrice,

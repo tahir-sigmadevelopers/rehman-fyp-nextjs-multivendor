@@ -15,6 +15,21 @@ import User from '../db/models/user.model'
 import mongoose from 'mongoose'
 import { getSetting } from './setting.actions'
 
+// Utility function to ensure product IDs are ObjectIds
+const ensureProductObjectIds = (items: OrderItem[]) => {
+  if (!items || !Array.isArray(items)) return items;
+  
+  return items.map((item: OrderItem) => {
+    if (item.product && typeof item.product === 'string' && mongoose.Types.ObjectId.isValid(item.product)) {
+      return {
+        ...item,
+        product: new mongoose.Types.ObjectId(item.product)
+      };
+    }
+    return item;
+  });
+};
+
 // CREATE
 export const createOrder = async (clientSideCart: Cart) => {
   try {
@@ -39,7 +54,7 @@ export const createOrder = async (clientSideCart: Cart) => {
     // Create order with authenticated user
     const orderData = {
       user: session.user.id,
-      items: cart.items,
+      items: ensureProductObjectIds(cart.items), // Ensure product IDs are ObjectIds
       shippingAddress: cart.shippingAddress,
       paymentMethod: cart.paymentMethod,
       itemsPrice: cart.itemsPrice,
@@ -88,7 +103,7 @@ export const createOrderFromCart = async (
   // Create order data with proper validation
   const orderData = {
     user: userId,
-    items: cart.items,
+    items: ensureProductObjectIds(cart.items), // Ensure product IDs are ObjectIds
     shippingAddress: cart.shippingAddress,
     paymentMethod: cart.paymentMethod,
     itemsPrice: cart.itemsPrice,
@@ -624,11 +639,20 @@ export async function getVendorOrders({
     limit = limit || pageSize
     await connectToDatabase()
     
+    console.log(`[getVendorOrders] Fetching orders for vendor: ${vendorId}`)
+    
     // First, get all products for this vendor
     const vendorProducts = await Product.find({ vendorId }).select('_id');
-    const vendorProductIds = vendorProducts.map(product => product._id.toString());
+    console.log(`[getVendorOrders] Found ${vendorProducts.length} products for this vendor`)
     
-    if (vendorProductIds.length === 0) {
+    // Create both ObjectId and string versions of product IDs for the query
+    const vendorProductObjectIds = vendorProducts.map(product => product._id);
+    const vendorProductIdStrings = vendorProducts.map(product => product._id.toString());
+    
+    console.log(`[getVendorOrders] Product IDs: ${vendorProductIdStrings.slice(0, 3).join(', ')}${vendorProductIdStrings.length > 3 ? '...' : ''}`)
+    
+    if (vendorProductObjectIds.length === 0) {
+      console.log(`[getVendorOrders] No products found for vendor ${vendorId}`)
       return {
         success: true,
         data: [],
@@ -637,30 +661,106 @@ export async function getVendorOrders({
       };
     }
     
+    // DEBUGGING: Check if products with this vendorId actually exist
+    console.log(`[getVendorOrders] Sample vendor product details:`, vendorProducts.slice(0, 1).map(p => ({
+      _id: p._id.toString(),
+      _idType: typeof p._id,
+      isObjectId: mongoose.Types.ObjectId.isValid(p._id)
+    })));
+    
+    // Get a sample order to check product ID format
+    const sampleOrder = await Order.findOne().limit(1);
+    if (sampleOrder) {
+      console.log(`[getVendorOrders] Sample order ID: ${sampleOrder._id}`);
+      console.log(`[getVendorOrders] Sample order item count: ${sampleOrder.items.length}`);
+      if (sampleOrder.items.length > 0) {
+        const sampleItem = sampleOrder.items[0];
+        console.log(`[getVendorOrders] Sample order product ID format:`, {
+          productId: sampleItem.product,
+          productIdToString: String(sampleItem.product),
+          productIdType: typeof sampleItem.product,
+          isObjectId: mongoose.Types.ObjectId.isValid(sampleItem.product)
+        });
+      }
+    }
+    
+    // Use $or to match either ObjectId or string versions of the product IDs
+    const productIdQuery = {
+      $or: [
+        // Match against ObjectId
+        { "items.product": { $in: vendorProductObjectIds } },
+        // Match against string representation
+        { "items.product": { $in: vendorProductIdStrings } }
+      ]
+    };
+    
+    // DEBUGGING: Log raw query
+    console.log(`[getVendorOrders] MongoDB query:`, JSON.stringify(productIdQuery));
+    
     // Count total orders for this vendor (for statistics)
-    const ordersCount = await Order.countDocuments({
-      "items.product": { $in: vendorProductIds }
-    });
+    const ordersCount = await Order.countDocuments(productIdQuery);
+    
+    console.log(`[getVendorOrders] Total orders containing vendor products: ${ordersCount}`)
     
     const skipAmount = (Number(page) - 1) * limit;
     
+    // DEBUGGING: Try direct query to find any matching order
+    const rawMatch = await Order.aggregate([
+      { $unwind: "$items" },
+      { 
+        $match: { 
+          "items.product": { 
+            $in: [...vendorProductIdStrings, ...vendorProductObjectIds]
+          } 
+        }
+      },
+      { $limit: 1 }
+    ]);
+    console.log(`[getVendorOrders] Direct aggregate match result count: ${rawMatch.length}`);
+    if (rawMatch.length > 0) {
+      console.log(`[getVendorOrders] Found direct match with product ID: ${rawMatch[0].items.product}`);
+    }
+    
     // Find orders that contain any products from this vendor
-    const orders = await Order.find({
-      "items.product": { $in: vendorProductIds }
-    })
+    const orders = await Order.find(productIdQuery)
       .populate('user', 'name email')
       .sort({ createdAt: 'desc' })
       .skip(skipAmount)
       .limit(limit);
+    
+    console.log(`[getVendorOrders] Found ${orders.length} orders for page ${page}`)
+    
+    // Sample an order's structure for debugging if available
+    if (orders.length > 0) {
+      const sampleOrder = orders[0];
+      console.log(`[getVendorOrders] Sample order: ${sampleOrder._id}`)
+      console.log(`[getVendorOrders] Sample order items count: ${sampleOrder.items.length}`)
+      
+      // Check the type of product ID in the order items
+      const productTypes = sampleOrder.items.map(item => {
+        const productId = item.product;
+        return {
+          id: String(productId),
+          type: mongoose.Types.ObjectId.isValid(productId) ? 'ObjectId' : typeof productId
+        };
+      });
+      console.log(`[getVendorOrders] Product ID types in order: ${JSON.stringify(productTypes)}`);
+    }
     
     // Process orders to only include items from this vendor
     const vendorOrders = orders.map(order => {
       const orderObj = order.toObject();
       
       // Filter items to only include this vendor's products
-      const vendorItems = orderObj.items.filter(item => 
-        vendorProductIds.includes(item.product.toString())
-      );
+      // Match both ObjectId and string versions
+      const vendorItems = orderObj.items.filter(item => {
+        const itemProductId = String(item.product);
+        const isMatch = vendorProductIdStrings.includes(itemProductId);
+        console.log(`[getVendorOrders] Checking item product ${itemProductId} - match: ${isMatch}`);
+        return isMatch;
+      });
+      
+      console.log(`[getVendorOrders] Order ${orderObj._id}: Found ${vendorItems.length} items from this vendor out of ${orderObj.items.length} total items`)
       
       // Calculate vendor's portion of the order
       const itemsPrice = vendorItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -785,8 +885,7 @@ export async function getVendorSalesAnalytics(vendorId: string) {
       }
     })
     
-    // Log the generated data to help with debugging
-    console.log('Generated monthly sales data:', completeMonthlyData)
+  
     
     return {
       success: true,
@@ -814,7 +913,8 @@ export async function getVendorTopProducts(vendorId: string, limit: number = 5) 
     // Get all products for this vendor
     const vendorProducts = await Product.find({ vendorId }).select('_id')
     const vendorProductIds = vendorProducts.map(product => product._id.toString())
-    
+    console.log(`[getVendorTopProducts] Vendor product IDs: ${vendorProductIds}`)
+    console.log(`[getVendorTopProducts] Vendor products: ${JSON.stringify(vendorProducts)}`)
     if (vendorProductIds.length === 0) {
       return {
         success: true,
@@ -906,7 +1006,14 @@ export const createGuestOrder = async (clientSideCart: Cart) => {
     
     // Use direct MongoDB driver to insert the document
     const db = mongoose.connection.db;
-    const orderCollection = db.collection('orders');
+    const orderCollection = db?.collection('orders');
+    
+    if (!orderCollection) {
+      throw new Error('Failed to access orders collection');
+    }
+    
+    // Process items to ensure all product IDs are ObjectIds
+    const processedItems = ensureProductObjectIds(cart.items);
     
     // Create the order document
     const orderDoc = {
@@ -915,7 +1022,7 @@ export const createGuestOrder = async (clientSideCart: Cart) => {
         email: clientSideCart.userInfo.email,
         isGuest: true
       },
-      items: cart.items,
+      items: processedItems,
       shippingAddress: cart.shippingAddress,
       paymentMethod: cart.paymentMethod,
       itemsPrice: cart.itemsPrice,
@@ -946,6 +1053,149 @@ export const createGuestOrder = async (clientSideCart: Cart) => {
     };
   } catch (error) {
     console.error('Guest order creation error:', error);
+    return {
+      success: false,
+      message: formatError(error)
+    };
+  }
+};
+
+// DEBUG FUNCTION - Add this at the end of the file
+export async function debugVendorOrderIssue(vendorId: string) {
+  try {
+    await connectToDatabase()
+    
+    console.log(`[DEBUG] Checking products and orders for vendor: ${vendorId}`)
+    
+    // 1. Check if vendor exists
+    const vendor = await User.findById(vendorId)
+    console.log(`[DEBUG] Vendor found: ${!!vendor}`, vendor ? `Name: ${vendor.name}` : 'No vendor found')
+    
+    if (!vendor) {
+      return {
+        success: false,
+        message: 'Vendor not found'
+      }
+    }
+    
+    // 2. Check vendor's products
+    const products = await Product.find({ vendorId }).select('_id name')
+    console.log(`[DEBUG] Products count: ${products.length}`)
+    
+    if (products.length === 0) {
+      return {
+        success: false,
+        message: 'No products found for this vendor',
+        suggestion: 'Ensure products have correct vendorId field set'
+      }
+    }
+    
+    // Log sample products
+    console.log('[DEBUG] Sample products:', products.slice(0, 5).map(p => ({ id: p._id.toString(), name: p.name })))
+    
+    // 3. Get product IDs
+    const productIds = products.map(p => p._id)
+    
+    // 4. Check if any orders contain these products
+    const orderCount = await Order.countDocuments({
+      "items.product": { $in: productIds }
+    })
+    
+    console.log(`[DEBUG] Orders containing vendor products: ${orderCount}`)
+    
+    if (orderCount === 0) {
+      // 5. Check if any orders exist at all
+      const totalOrders = await Order.countDocuments()
+      console.log(`[DEBUG] Total orders in system: ${totalOrders}`)
+      
+      // 6. Sample a few orders to check their structure
+      if (totalOrders > 0) {
+        const sampleOrders = await Order.find().limit(2)
+        console.log('[DEBUG] Sample order structure:', JSON.stringify(sampleOrders[0], null, 2))
+        
+        // 7. Check if product IDs in orders match the format of vendor product IDs
+        const orderItemProducts = sampleOrders.flatMap(order => 
+          order.items.map(item => ({
+            productId: item.product.toString(),
+            orderId: order._id.toString()
+          }))
+        )
+        
+        console.log('[DEBUG] Sample product IDs in orders:', orderItemProducts)
+        
+        // 8. Check if any products from this vendor match the format in orders
+        const productIdStrings = productIds.map(id => id.toString())
+        console.log('[DEBUG] Vendor product ID strings:', productIdStrings)
+      }
+      
+      return {
+        success: false,
+        message: 'No orders found containing vendor products',
+        suggestion: 'Check if orders contain the correct product IDs'
+      }
+    }
+    
+    // 9. Get sample orders for this vendor
+    const sampleVendorOrders = await Order.find({
+      "items.product": { $in: productIds }
+    }).limit(2)
+    
+    // Detailed logging of matches between order items and vendor products
+    sampleVendorOrders.forEach(order => {
+      console.log(`[DEBUG] Order ${order._id}:`)
+      
+      order.items.forEach(item => {
+        const isVendorProduct = productIds.some(id => id.toString() === item.product.toString())
+        console.log(`[DEBUG]   - Item: ${item.name}, Product ID: ${item.product}, Belongs to vendor: ${isVendorProduct}`)
+      })
+    })
+    
+    return {
+      success: true,
+      message: `Found ${orderCount} orders containing products from vendor ${vendorId}`,
+      data: {
+        productCount: products.length,
+        orderCount: orderCount,
+        sampleOrders: sampleVendorOrders.map(o => ({
+          id: o._id.toString(),
+          items: o.items.length,
+          vendorItems: o.items.filter(item => 
+            productIds.some(pid => pid.toString() === item.product.toString())
+          ).length
+        }))
+      }
+    }
+  } catch (error) {
+    console.error('[DEBUG] Error:', error)
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Error debugging vendor order issue'
+    }
+  }
+}
+
+// CREATE DIRECT ORDER - Ensures product IDs are properly converted to ObjectIds
+export const createDirectOrder = async (orderData: any) => {
+  try {
+    await connectToDatabase();
+    
+    // Process items to ensure all product IDs are ObjectIds
+    if (orderData.items && Array.isArray(orderData.items)) {
+      orderData.items = ensureProductObjectIds(orderData.items);
+    }
+    
+    // Create the order with Mongoose
+    const createdOrder = await Order.create(orderData);
+    
+    return {
+      success: true,
+      message: 'Order created successfully',
+      data: {
+        orderId: createdOrder._id.toString()
+      }
+    };
+  } catch (error) {
+    console.error('Direct order creation error:', error);
     return {
       success: false,
       message: formatError(error)
