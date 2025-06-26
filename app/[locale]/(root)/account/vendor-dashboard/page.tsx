@@ -23,6 +23,8 @@ import { Separator } from '@/components/ui/separator'
 import { cn, formatDateTime, formatPrice } from '@/lib/utils'
 import SalesChart from './sales-chart'
 import { VendorOrdersCard } from './components/orders-card'
+import { DashboardStats } from './components/dashboard-stats'
+import { EnhancedQuickActions } from './components/enhanced-quick-actions'
 
 const PAGE_TITLE = 'Vendor Dashboard'
 export const metadata: Metadata = {
@@ -161,7 +163,7 @@ export default async function VendorDashboardPage() {
   return (
     <div className="space-y-8">
       {/* Dashboard Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-primary/5 to-primary/10 dark:from-primary/10 dark:to-primary/20 p-6 rounded-xl shadow-sm border">
         <div>
           <h1 className="text-3xl font-bold">{PAGE_TITLE}</h1>
           <p className="text-muted-foreground mt-1">
@@ -187,7 +189,7 @@ export default async function VendorDashboardPage() {
                   Manage Products
                 </Link>
               </Button>
-              <Button asChild className="gap-2">
+              <Button asChild className="gap-2 bg-amber-500 hover:bg-amber-600">
                 <Link href="/account/vendor-dashboard/new-product">
                   <ShoppingBag className="h-4 w-4" />
                   Add New Product
@@ -229,105 +231,21 @@ export default async function VendorDashboardPage() {
       {vendor.vendorDetails?.status === 'approved' && (
         <>
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Orders Card */}
-            <VendorOrdersCard 
-              initialStats={{
-                pendingOrders,
-                totalOrders,
-                totalSales: totalRevenue,
-              }}
-            />
-            
-            {/* Other stats cards here */}
-            <Card className="overflow-hidden">
-              <CardHeader className="flex flex-row items-center justify-between bg-muted/50 p-4">
-                <CardTitle className="text-base font-medium">Products</CardTitle>
-                <Package className="h-5 w-5 text-muted-foreground" />
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="grid gap-6">
-                  <div className="space-y-2">
-                    <div className="text-2xl font-bold">{totalProducts}</div>
-                    <div className="text-xs text-muted-foreground uppercase">Total Products</div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <div className="text-xl font-bold">{activeProducts}</div>
-                      <div className="text-xs text-muted-foreground uppercase">
-                        Active
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="text-xl font-bold">{totalProducts - activeProducts}</div>
-                      <div className="text-xs text-muted-foreground uppercase">
-                        Drafts
-                      </div>
-                    </div>
-                  </div>
-                  <Link
-                    href="/account/vendor-dashboard/manage-products"
-                    className="text-sm font-medium text-primary hover:underline"
-                  >
-                    Manage products
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="overflow-hidden">
-              <CardHeader className="flex flex-row items-center justify-between bg-muted/50 p-4">
-                <CardTitle className="text-base font-medium">Revenue</CardTitle>
-                <CircleDollarSign className="h-5 w-5 text-muted-foreground" />
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="grid gap-6">
-                  <div className="space-y-2">
-                    <div className="text-2xl font-bold">{formatPrice(totalRevenue)}</div>
-                    <div className="text-xs text-muted-foreground uppercase">Total Revenue</div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="text-xs text-muted-foreground uppercase mb-1">Revenue by Month</div>
-                    <div className="h-[40px] w-full">
-                      {salesAnalytics.length > 0 && (
-                        <div className="flex items-end justify-between gap-1 h-full">
-                          {salesAnalytics.slice(-6).map((item, i) => {
-                            const maxValue = Math.max(...salesAnalytics.map(s => s.amount));
-                            const height = maxValue > 0 
-                              ? Math.max(15, (item.amount / maxValue) * 100) 
-                              : 15;
-                            return (
-                              <div key={i} className="flex flex-col items-center gap-1 flex-1">
-                                <div 
-                                  className="bg-primary/80 rounded-sm w-full" 
-                                  style={{ height: `${height}%` }}
-                                ></div>
-                                <span className="text-[9px] text-muted-foreground">
-                                  {item.month.split('-')[1]}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <Link
-                    href="/account/vendor-dashboard/sales"
-                    className="text-sm font-medium text-primary hover:underline"
-                  >
-                    View analytics
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <DashboardStats
+            totalOrders={totalOrders}
+            pendingOrders={pendingOrders}
+            totalRevenue={totalRevenue}
+            totalProducts={totalProducts}
+            activeProducts={activeProducts}
+            avgOrderValue={totalOrders > 0 ? totalRevenue / totalOrders : 0}
+            bestSellingProduct={topProducts.length > 0 ? topProducts[0]?.name : 'None'}
+          />
 
           {/* Quick Actions */}
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            <Link href="/account/vendor-dashboard/new-product" className="flex items-center gap-3 rounded-lg border p-4 hover:bg-accent">
-              <div className="p-2 rounded-full bg-primary/10">
-                <ShoppingBag className="h-5 w-5 text-primary" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Link href="/account/vendor-dashboard/new-product" className="group flex items-center gap-3 rounded-lg border p-4 transition-all hover:border-primary hover:bg-primary/5 hover:shadow-md">
+              <div className="p-2 rounded-full bg-amber-100 text-amber-700 group-hover:bg-amber-200">
+                <ShoppingBag className="h-5 w-5" />
               </div>
               <div>
                 <h3 className="font-medium">Add Product</h3>
@@ -335,9 +253,9 @@ export default async function VendorDashboardPage() {
               </div>
             </Link>
             
-            <Link href="/account/vendor-dashboard/manage-products" className="flex items-center gap-3 rounded-lg border p-4 hover:bg-accent">
-              <div className="p-2 rounded-full bg-primary/10">
-                <Package className="h-5 w-5 text-primary" />
+            <Link href="/account/vendor-dashboard/manage-products" className="group flex items-center gap-3 rounded-lg border p-4 transition-all hover:border-primary hover:bg-primary/5 hover:shadow-md">
+              <div className="p-2 rounded-full bg-blue-100 text-blue-700 group-hover:bg-blue-200">
+                <Package className="h-5 w-5" />
               </div>
               <div>
                 <h3 className="font-medium">Manage Products</h3>
@@ -345,9 +263,9 @@ export default async function VendorDashboardPage() {
               </div>
             </Link>
             
-            <Link href="/account/vendor-dashboard/orders" className="flex items-center gap-3 rounded-lg border p-4 hover:bg-accent">
-              <div className="p-2 rounded-full bg-primary/10">
-                <ShoppingBag className="h-5 w-5 text-primary" />
+            <Link href="/account/vendor-dashboard/orders" className="group flex items-center gap-3 rounded-lg border p-4 transition-all hover:border-primary hover:bg-primary/5 hover:shadow-md">
+              <div className="p-2 rounded-full bg-green-100 text-green-700 group-hover:bg-green-200">
+                <ShoppingBag className="h-5 w-5" />
               </div>
               <div>
                 <h3 className="font-medium">Orders</h3>
@@ -355,13 +273,13 @@ export default async function VendorDashboardPage() {
               </div>
             </Link>
             
-            <Link href="/account/vendor-dashboard/edit-store" className="flex items-center gap-3 rounded-lg border p-4 hover:bg-accent">
-              <div className="p-2 rounded-full bg-primary/10">
-                <InfoIcon className="h-5 w-5 text-primary" />
+            <Link href="/account/vendor-dashboard/sales" className="group flex items-center gap-3 rounded-lg border p-4 transition-all hover:border-primary hover:bg-primary/5 hover:shadow-md">
+              <div className="p-2 rounded-full bg-purple-100 text-purple-700 group-hover:bg-purple-200">
+                <BarChart3 className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="font-medium">Store Settings</h3>
-                <p className="text-sm text-muted-foreground">Update store information</p>
+                <h3 className="font-medium">Analytics</h3>
+                <p className="text-sm text-muted-foreground">View sales performance</p>
               </div>
             </Link>
           </div>
