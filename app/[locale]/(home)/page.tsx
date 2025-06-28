@@ -29,6 +29,25 @@ export default async function HomePage() {
   const bestSellers = await getProductsForCard({
     tag: 'best-seller',
   })
+  
+  // Map of category names to their image paths
+  const categoryImages: Record<string, string> = {
+    'T-Shirts': '/images/t-shirts.jpg',
+    'Jeans': '/images/jeans.jpg',
+    'Wrist Watches': '/images/wrist-watches.jpg',
+    'Shoes': '/images/shoes.jpg',
+    'Electronics': '/images/p31-1.jpg',
+    'Clothing': '/images/p21-1.jpg',
+    'Furniture': '/images/p16-1.jpg',
+    'Kitchen': '/images/p42-1.jpg',
+    'Accessories': '/images/accessories-watch.jpg',
+    'Sports & Outdoors': '/images/p32-1.jpg',
+    'Beauty': '/images/beauty-makeup.jpg',
+    'Computers': '/images/computers-laptop.jpg',
+    'Home': '/images/p15-1.jpg',
+    'Luggage': '/images/p36-1.jpg',
+  }
+  
   const cards = [
     {
       title: t('Categories to explore'),
@@ -38,7 +57,7 @@ export default async function HomePage() {
       },
       items: categories.map((category) => ({
         name: category,
-        image: `/images/${toSlug(category)}.jpg`,
+        image: categoryImages[category] || `/images/${toSlug(category)}.jpg`,
         href: `/search?category=${category}`,
       })),
     },
