@@ -70,8 +70,13 @@ export async function getWebPageById(webPageId: string) {
 
 // GET ONE PAGE BY SLUG
 export async function getWebPageBySlug(slug: string) {
-  await connectToDatabase()
-  const webPage = await WebPage.findOne({ slug, isPublished: true })
-  if (!webPage) throw new Error('WebPage not found')
-  return JSON.parse(JSON.stringify(webPage)) as IWebPage
+  try {
+    await connectToDatabase()
+    const webPage = await WebPage.findOne({ slug, isPublished: true })
+    if (!webPage) return null
+    return JSON.parse(JSON.stringify(webPage)) as IWebPage
+  } catch (error) {
+    console.error('Error fetching web page:', error)
+    return null
+  }
 }
