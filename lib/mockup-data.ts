@@ -1,8 +1,9 @@
 import { IProductInput } from '@/types';
 import { toSlug } from './utils';
+import { Types } from 'mongoose';
 
-// Using the vendorId from the provided sample
-const vendorId = '680f6385dda6cc18bb5a62ec';
+// Using a proper MongoDB ObjectId format for vendorId
+const vendorId = new Types.ObjectId().toString();
 
 // Helper function to generate a unique ObjectId-like string
 const generateObjectId = () => {

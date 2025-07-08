@@ -26,6 +26,22 @@ const main = async () => {
 
     await User.deleteMany()
     const createdUser = await User.insertMany(users)
+    
+    // Create a vendor user if one doesn't exist
+    const vendorUser = createdUser.find(user => user.isVendor) || createdUser[0];
+    
+    // Update the first user to be a vendor if no vendor exists
+    if (!vendorUser.isVendor) {
+      await User.findByIdAndUpdate(vendorUser._id, {
+        isVendor: true,
+        vendorDetails: {
+          brandName: 'Default Vendor',
+          description: 'This is a default vendor account',
+          status: 'approved'
+        }
+      });
+      console.log(`Updated user ${vendorUser.name} to be a vendor`);
+    }
 
     await Setting.deleteMany()
     const createdSetting = await Setting.insertMany(settings)
@@ -34,9 +50,14 @@ const main = async () => {
     await WebPage.insertMany(webPages)
 
     await Product.deleteMany()
-    const createdProducts = await Product.insertMany(
-      products.map((x) => ({ ...x, _id: undefined }))
-    )
+    // Add vendorId to all products
+    const productsWithVendorId = products.map((x) => ({ 
+      ...x, 
+      _id: undefined,
+      vendorId: vendorUser._id  // Set vendorId to the vendor user
+    }))
+    
+    const createdProducts = await Product.insertMany(productsWithVendorId)
 
     await Review.deleteMany()
     const rws = []
@@ -122,7 +143,7 @@ const generateOrder = async (
       image: product1.images[0],
       category: product1.category,
       price: product1.price,
-      countInStock: product1.countInStock,
+      countInStock: product1.stock,
     },
     {
       clientId: generateId(),
@@ -133,7 +154,7 @@ const generateOrder = async (
       image: product2.images[0],
       category: product1.category,
       price: product2.price,
-      countInStock: product1.countInStock,
+      countInStock: product2.stock,
     },
     {
       clientId: generateId(),
@@ -144,7 +165,7 @@ const generateOrder = async (
       image: product3.images[0],
       category: product1.category,
       price: product3.price,
-      countInStock: product1.countInStock,
+      countInStock: product3.stock,
     },
   ]
 

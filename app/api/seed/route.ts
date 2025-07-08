@@ -41,6 +41,12 @@ export async function GET(req: NextRequest) {
     const productsToInsert = mockupProducts.map(product => {
       // Remove _id field as MongoDB will generate its own
       const { _id, ...productData } = product
+      
+      // Ensure vendorId is included and properly formatted
+      if (!productData.vendorId) {
+        throw new Error('vendorId is required for products')
+      }
+      
       return productData
     })
 
