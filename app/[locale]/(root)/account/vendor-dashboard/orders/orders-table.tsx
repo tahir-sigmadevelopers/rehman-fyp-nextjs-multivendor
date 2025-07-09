@@ -19,7 +19,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
-import { MoreHorizontal, Search, X, ExternalLink } from 'lucide-react'
+import { MoreHorizontal, Search, X, ExternalLink, CreditCard, Package } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { 
   Pagination,
@@ -57,18 +57,23 @@ interface OrdersTableProps {
   totalPages: number
   currentPage: number
   vendorId: string
+  markOrderAsPaid: (orderId: string) => Promise<{ success: boolean; message: string }>
+  markOrderAsDelivered: (orderId: string) => Promise<{ success: boolean; message: string }>
 }
 
 export default function VendorOrdersTable({ 
   initialOrders, 
   totalPages, 
   currentPage,
-  vendorId
+  vendorId,
+  markOrderAsPaid,
+  markOrderAsDelivered
 }: OrdersTableProps) {
   const router = useRouter()
   const [orders, setOrders] = useState<any[]>(initialOrders)
   const [filteredOrders, setFilteredOrders] = useState<any[]>(initialOrders)
   const [isLoading, setIsLoading] = useState(false)
+  const [processingOrderId, setProcessingOrderId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<OrderStatus>(ORDER_STATUS.ALL)
   
@@ -177,6 +182,66 @@ export default function VendorOrdersTable({
     fetchOrders(page)
   }
   
+  const handleMarkAsPaid = async (orderId: string) => {
+    setProcessingOrderId(orderId)
+    try {
+      const result = await markOrderAsPaid(orderId)
+      if (result.success) {
+        toast({
+          description: result.message,
+        })
+        // Update the order in the local state
+        setOrders(prevOrders => prevOrders.map(order => 
+          order._id === orderId 
+            ? { ...order, isPaid: true, paidAt: new Date() } 
+            : order
+        ))
+      } else {
+        toast({
+          variant: 'destructive',
+          description: result.message,
+        })
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        description: 'Failed to update order status',
+      })
+    } finally {
+      setProcessingOrderId(null)
+    }
+  }
+  
+  const handleMarkAsDelivered = async (orderId: string) => {
+    setProcessingOrderId(orderId)
+    try {
+      const result = await markOrderAsDelivered(orderId)
+      if (result.success) {
+        toast({
+          description: result.message,
+        })
+        // Update the order in the local state
+        setOrders(prevOrders => prevOrders.map(order => 
+          order._id === orderId 
+            ? { ...order, isDelivered: true, deliveredAt: new Date() } 
+            : order
+        ))
+      } else {
+        toast({
+          variant: 'destructive',
+          description: result.message,
+        })
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        description: 'Failed to update order status',
+      })
+    } finally {
+      setProcessingOrderId(null)
+    }
+  }
+  
   const getOrderStatusBadge = (order: any) => {
     if (order.isDelivered) {
       return <Badge className="bg-green-500">Delivered</Badge>
@@ -282,9 +347,17 @@ export default function VendorOrdersTable({
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
+                        <Button 
+                          variant="ghost" 
+                          className="h-8 w-8 p-0"
+                          disabled={processingOrderId === order._id}
+                        >
                           <span className="sr-only">Open menu</span>
-                          <MoreHorizontal className="h-4 w-4" />
+                          {processingOrderId === order._id ? (
+                            <span className="h-4 w-4 animate-spin">⏳</span>
+                          ) : (
+                            <MoreHorizontal className="h-4 w-4" />
+                          )}
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
@@ -296,6 +369,26 @@ export default function VendorOrdersTable({
                             View Details
                           </Link>
                         </DropdownMenuItem>
+                        
+                        {!order.isPaid && (
+                          <DropdownMenuItem
+                            onClick={() => handleMarkAsPaid(order._id)}
+                            disabled={processingOrderId === order._id}
+                          >
+                            <CreditCard className="mr-2 h-4 w-4" />
+                            Mark as Paid
+                          </DropdownMenuItem>
+                        )}
+                        
+                        {order.isPaid && !order.isDelivered && (
+                          <DropdownMenuItem
+                            onClick={() => handleMarkAsDelivered(order._id)}
+                            disabled={processingOrderId === order._id}
+                          >
+                            <Package className="mr-2 h-4 w-4" />
+                            Mark as Delivered
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>

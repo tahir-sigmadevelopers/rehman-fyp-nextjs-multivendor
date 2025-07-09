@@ -4,7 +4,7 @@ import {
   useElements,
   useStripe,
 } from '@stripe/react-stripe-js'
-import { FormEvent, useState } from 'react'
+import { FormEvent, useState, useEffect } from 'react'
 
 import { Button } from '@/components/ui/button'
 import ProductPrice from '@/components/shared/product/product-price'
@@ -26,6 +26,12 @@ export default function StripeForm({
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string>()
   const [email, setEmail] = useState<string>()
+  const [origin, setOrigin] = useState<string>('')
+
+  // Set the origin when the component mounts
+  useEffect(() => {
+    setOrigin(window.location.origin)
+  }, [])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -37,7 +43,7 @@ export default function StripeForm({
       .confirmPayment({
         elements,
         confirmParams: {
-          return_url: `${site.url}/checkout/${orderId}/stripe-payment-success`,
+          return_url: `${origin || site.url}/checkout/${orderId}/stripe-payment-success`,
         },
       })
       .then(({ error }) => {

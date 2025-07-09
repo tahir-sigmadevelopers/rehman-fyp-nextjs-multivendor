@@ -8,7 +8,6 @@ import { OrderInputSchema } from '../validator'
 import Order, { IOrder } from '../db/models/order.model'
 import { revalidatePath } from 'next/cache'
 import { sendAskReviewOrderItems, sendPurchaseReceipt } from '@/emails'
-import { paypal } from '../paypal'
 import { DateRange } from 'react-day-picker'
 import Product from '../db/models/product.model'
 import User from '../db/models/user.model'
@@ -127,6 +126,8 @@ export const createOrderFromCart = async (
 }
 
 export async function updateOrderToPaid(orderId: string) {
+  'use server';
+  
   try {
     await connectToDatabase()
     const order = await Order.findById(orderId).populate<{
@@ -134,15 +135,28 @@ export async function updateOrderToPaid(orderId: string) {
     }>('user', 'name email')
     if (!order) throw new Error('Order not found')
     if (order.isPaid) throw new Error('Order is already paid')
+    
     order.isPaid = true
     order.paidAt = new Date()
     await order.save()
+    
+    // Update product stock
     if (!process.env.MONGODB_URI?.startsWith('mongodb://localhost'))
       await updateProductStock(order._id)
+    
+    // Send email notification
     if (order.user.email) await sendPurchaseReceipt({ order })
+    
+    // Revalidate all relevant paths
     revalidatePath(`/account/orders/${orderId}`)
-    return { success: true, message: 'Order paid successfully' }
+    revalidatePath(`/admin/orders/${orderId}`)
+    revalidatePath(`/account/vendor-dashboard/orders/${orderId}`)
+    revalidatePath(`/admin/orders`)
+    revalidatePath(`/account/vendor-dashboard/orders`)
+    
+    return { success: true, message: 'Order marked as paid successfully' }
   } catch (err) {
+    console.error('Error updating order to paid:', err)
     return { success: false, message: formatError(err) }
   }
 }
@@ -181,20 +195,35 @@ const updateProductStock = async (orderId: string) => {
   }
 }
 export async function deliverOrder(orderId: string) {
+  'use server';
+  
   try {
     await connectToDatabase()
     const order = await Order.findById(orderId).populate<{
       user: { email: string; name: string }
     }>('user', 'name email')
+    
     if (!order) throw new Error('Order not found')
-    if (!order.isPaid) throw new Error('Order is not paid')
+    if (!order.isPaid) throw new Error('Order must be paid before it can be delivered')
+    if (order.isDelivered) throw new Error('Order is already marked as delivered')
+    
     order.isDelivered = true
     order.deliveredAt = new Date()
     await order.save()
+    
+    // Send email notification
     if (order.user.email) await sendAskReviewOrderItems({ order })
+    
+    // Revalidate all relevant paths
     revalidatePath(`/account/orders/${orderId}`)
-    return { success: true, message: 'Order delivered successfully' }
+    revalidatePath(`/admin/orders/${orderId}`)
+    revalidatePath(`/account/vendor-dashboard/orders/${orderId}`)
+    revalidatePath(`/admin/orders`)
+    revalidatePath(`/account/vendor-dashboard/orders`)
+    
+    return { success: true, message: 'Order marked as delivered successfully' }
   } catch (err) {
+    console.error('Error marking order as delivered:', err)
     return { success: false, message: formatError(err) }
   }
 }
@@ -293,69 +322,6 @@ export async function getOrderById(orderId: string): Promise<IOrder> {
   } catch (error) {
     console.error('Error getting order by ID:', error)
     throw error
-  }
-}
-
-export async function createPayPalOrder(orderId: string) {
-  await connectToDatabase()
-  try {
-    const order = await Order.findById(orderId)
-    if (order) {
-      const paypalOrder = await paypal.createOrder(order.totalPrice)
-      order.paymentResult = {
-        id: paypalOrder.id,
-        email_address: '',
-        status: '',
-        pricePaid: '0',
-      }
-      await order.save()
-      return {
-        success: true,
-        message: 'PayPal order created successfully',
-        data: paypalOrder.id,
-      }
-    } else {
-      throw new Error('Order not found')
-    }
-  } catch (err) {
-    return { success: false, message: formatError(err) }
-  }
-}
-
-export async function approvePayPalOrder(
-  orderId: string,
-  data: { orderID: string }
-) {
-  await connectToDatabase()
-  try {
-    const order = await Order.findById(orderId).populate('user', 'email')
-    if (!order) throw new Error('Order not found')
-
-    const captureData = await paypal.capturePayment(data.orderID)
-    if (
-      !captureData ||
-      captureData.id !== order.paymentResult?.id ||
-      captureData.status !== 'COMPLETED'
-    )
-      throw new Error('Error in paypal payment')
-    order.isPaid = true
-    order.paidAt = new Date()
-    order.paymentResult = {
-      id: captureData.id,
-      status: captureData.status,
-      email_address: captureData.payer.email_address,
-      pricePaid:
-        captureData.purchase_units[0]?.payments?.captures[0]?.amount?.value,
-    }
-    await order.save()
-    await sendPurchaseReceipt({ order })
-    revalidatePath(`/account/orders/${orderId}`)
-    return {
-      success: true,
-      message: 'Your order has been successfully paid by PayPal',
-    }
-  } catch (err) {
-    return { success: false, message: formatError(err) }
   }
 }
 

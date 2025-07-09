@@ -1,6 +1,7 @@
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import { getOrderById } from '@/lib/actions/order.actions'
+
 import { formatDateTime, formatPrice } from '@/lib/utils'
 import { Metadata } from 'next'
 import { Separator } from '@/components/ui/separator'
@@ -13,7 +14,8 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle 
+  CardTitle,
+  CardFooter
 } from '@/components/ui/card'
 import {
   ChevronLeft,
@@ -24,6 +26,7 @@ import {
   CalendarClock
 } from 'lucide-react'
 import { ShieldCheck } from '@/components/ui/icons'
+import OrderActions from './order-actions'
 
 export const metadata: Metadata = {
   title: 'Order Details',
@@ -144,6 +147,11 @@ export default async function VendorOrderDetailPage({
                 </div>
               </div>
             </CardContent>
+            <OrderActions 
+              orderId={order._id} 
+              isPaid={order.isPaid} 
+              isDelivered={order.isDelivered} 
+            />
           </Card>
           
           {/* Customer Information */}

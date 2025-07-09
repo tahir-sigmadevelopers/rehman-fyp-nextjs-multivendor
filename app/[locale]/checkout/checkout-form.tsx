@@ -47,10 +47,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 const shippingAddressDefaultValues =
   process.env.NODE_ENV === 'development'
     ? {
-        fullName: 'Basir',
+        fullName: 'Rehman Ahmed',
         street: '1911, 65 Sherbrooke Est',
         city: 'Montreal',
-        province: 'Quebec',
+        province: 'Ontario',
         phone: '4181234567',
         postalCode: 'H2X 1C4',
         country: 'Canada',

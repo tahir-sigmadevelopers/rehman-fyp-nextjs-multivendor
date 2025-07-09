@@ -32,6 +32,13 @@ export default async function SuccessPage(props: {
 
   const isSuccess = paymentIntent.status === 'succeeded'
   if (!isSuccess) return redirect(`/checkout/${id}`)
+  
+  // Check if this is a guest order by checking if user is an object with name/email instead of a string ID
+  const isGuestOrder = typeof order.user === 'object' && order.user !== null
+  
+  // Determine the order link based on whether it's a guest order or not
+  const orderLink = isGuestOrder ? `/orders/guest/${id}` : `/account/orders/${id}`
+
   return (
     <div className='max-w-4xl w-full mx-auto space-y-8'>
       <div className='flex flex-col gap-6 items-center '>
@@ -40,7 +47,7 @@ export default async function SuccessPage(props: {
         </h1>
         <div>We are now processing your order.</div>
         <Button asChild>
-          <Link href={`/account/orders/${id}`}>View order</Link>
+          <Link href={orderLink}>View order</Link>
         </Button>
       </div>
     </div>

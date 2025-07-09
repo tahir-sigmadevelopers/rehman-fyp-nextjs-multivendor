@@ -20,6 +20,25 @@ export default function ActionButton({
 }) {
   const [isPending, startTransition] = useTransition()
   const { toast } = useToast()
+  
+  const handleClick = () => {
+    startTransition(async () => {
+      try {
+        const res = await action()
+        toast({
+          variant: res.success ? 'default' : 'destructive',
+          description: res.message,
+        })
+      } catch (error) {
+        console.error('Action error:', error)
+        toast({
+          variant: 'destructive',
+          description: error instanceof Error ? error.message : 'An error occurred',
+        })
+      }
+    })
+  }
+  
   return (
     <Button
       type='button'
@@ -27,15 +46,7 @@ export default function ActionButton({
       variant={variant}
       size={size}
       disabled={isPending}
-      onClick={() =>
-        startTransition(async () => {
-          const res = await action()
-          toast({
-            variant: res.success ? 'default' : 'destructive',
-            description: res.message,
-          })
-        })
-      }
+      onClick={handleClick}
     >
       {isPending ? 'processing...' : caption}
     </Button>

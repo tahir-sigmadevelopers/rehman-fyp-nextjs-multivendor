@@ -1,6 +1,7 @@
 import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import { getVendorOrders } from '@/lib/actions/order.actions'
+import { markOrderAsPaid, markOrderAsDelivered } from '@/lib/actions/order-client-actions'
 import VendorOrdersTable from './orders-table'
 import { Separator } from '@/components/ui/separator'
 import { Metadata } from 'next'
@@ -63,6 +64,8 @@ export default async function VendorOrdersPage({
         totalPages={totalPages}
         currentPage={page}
         vendorId={session.user.id}
+        markOrderAsPaid={markOrderAsPaid}
+        markOrderAsDelivered={markOrderAsDelivered}
       />
     </div>
   )

@@ -1265,7 +1265,7 @@ We also provide helpful resources such as order tracking, product guides, and FA
         description:
           'TradeBiz is a sample Ecommerce website built with Next.js, Tailwind CSS, and MongoDB.',
         keywords: 'Next Ecommerce, Next.js, Tailwind CSS, MongoDB',
-        url: 'https://next-mongo-ecommerce-final.vercel.app',
+        url: process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000',
         logo: '/icons/logo.svg',
         slogan: 'Spend less, enjoy more.',
         author: 'Next Ecommerce',
