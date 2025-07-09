@@ -7,6 +7,7 @@ import Image from 'next/image'
 import ProductPrice from '@/components/shared/product/product-price'
 import Link from 'next/link'
 import { ShoppingBag, Package, MapPin, CalendarIcon } from 'lucide-react'
+import GuestOrderHeader from '../header'
 
 export async function generateMetadata(props: {
   params: Promise<{ id: string }>
@@ -68,16 +69,18 @@ export default async function GuestOrderDetailsPage(props: {
   const guestUser = order.user as { name: string; email: string; isGuest: boolean }
 
   return (
-    <div className="max-w-6xl mx-auto py-4">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold mb-2 flex items-center">
-          <ShoppingBag className="mr-2 h-6 w-6" />
-          Guest Order {formatId(order._id)}
-        </h1>
-        <p className="text-muted-foreground">
-          Placed on {formatDateTime(createdAt).dateOnly}
-        </p>
-      </div>
+    <>
+      <GuestOrderHeader />
+      <div className="max-w-6xl mx-auto py-4">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold mb-2 flex items-center">
+            <ShoppingBag className="mr-2 h-6 w-6" />
+            Guest Order {formatId(order._id)}
+          </h1>
+          <p className="text-muted-foreground">
+            Placed on {formatDateTime(createdAt).dateOnly}
+          </p>
+        </div>
 
       <div className="grid md:grid-cols-3 gap-6">
         <div className="md:col-span-2 space-y-6">
@@ -252,5 +255,6 @@ export default async function GuestOrderDetailsPage(props: {
         </div>
       </div>
     </div>
+    </>
   )
 } 

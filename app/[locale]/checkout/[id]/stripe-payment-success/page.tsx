@@ -1,9 +1,8 @@
-import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import Stripe from 'stripe'
-
-import { Button } from '@/components/ui/button'
 import { getOrderById } from '@/lib/actions/order.actions'
+import { formatDateTime } from '@/lib/utils'
+import SuccessUI from './success-ui'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string)
 
@@ -14,7 +13,6 @@ export default async function SuccessPage(props: {
   searchParams: Promise<{ payment_intent: string }>
 }) {
   const params = await props.params
-
   const { id } = params
 
   const searchParams = await props.searchParams
@@ -38,18 +36,23 @@ export default async function SuccessPage(props: {
   
   // Determine the order link based on whether it's a guest order or not
   const orderLink = isGuestOrder ? `/orders/guest/${id}` : `/account/orders/${id}`
+  
+  // Format delivery date
+  const deliveryDate = formatDateTime(order.expectedDeliveryDate).dateOnly
+  
+  // Get a sample of items to display (first 3)
+  const displayItems = order.items.slice(0, 3)
+  const hasMoreItems = order.items.length > 3
+  const additionalItemsCount = order.items.length - 3
 
   return (
-    <div className='max-w-4xl w-full mx-auto space-y-8'>
-      <div className='flex flex-col gap-6 items-center '>
-        <h1 className='font-bold text-2xl lg:text-3xl'>
-          Thanks for your purchase
-        </h1>
-        <div>We are now processing your order.</div>
-        <Button asChild>
-          <Link href={orderLink}>View order</Link>
-        </Button>
-      </div>
-    </div>
+    <SuccessUI 
+      order={order}
+      orderLink={orderLink}
+      deliveryDate={deliveryDate}
+      displayItems={displayItems}
+      hasMoreItems={hasMoreItems}
+      additionalItemsCount={additionalItemsCount}
+    />
   )
 }

@@ -58,7 +58,7 @@ const users: IUserInput[] = [
       country: 'USA',
       phone: '123-456-7890',
     },
-    paymentMethod: 'PayPal',
+    paymentMethod: 'Stripe',
     emailVerified: false,
   },
   {
@@ -92,7 +92,7 @@ const users: IUserInput[] = [
       country: 'USA',
       phone: '123-456-7890',
     },
-    paymentMethod: 'PayPal',
+    paymentMethod: 'Stripe',
     emailVerified: false,
   },
   {
@@ -160,7 +160,7 @@ const users: IUserInput[] = [
       country: 'USA',
       phone: '123-456-7890',
     },
-    paymentMethod: 'PayPal',
+    paymentMethod: 'Stripe',
     emailVerified: false,
   },
   {
@@ -211,7 +211,7 @@ const users: IUserInput[] = [
       country: 'USA',
       phone: '123-456-7890',
     },
-    paymentMethod: 'PayPal',
+    paymentMethod: 'Stripe',
     emailVerified: false,
   },
   {
@@ -262,7 +262,7 @@ const users: IUserInput[] = [
       country: 'USA',
       phone: '123-456-7890',
     },
-    paymentMethod: 'PayPal',
+    paymentMethod: 'Stripe',
     emailVerified: false,
   },
 ]
@@ -1311,11 +1311,10 @@ We also provide helpful resources such as order tracking, product guides, and FA
       ],
       defaultCurrency: 'USD',
       availablePaymentMethods: [
-        { name: 'PayPal', commission: 0 },
         { name: 'Stripe', commission: 0 },
         { name: 'Cash On Delivery', commission: 0 },
       ],
-      defaultPaymentMethod: 'PayPal',
+      defaultPaymentMethod: 'Stripe',
       availableDeliveryDates: [
         {
           name: 'Tomorrow',
